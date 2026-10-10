@@ -20,13 +20,14 @@ namespace osu.Game.Online.API
 
         private readonly IAPIProvider api;
 
-        private readonly Bindable<APIUser> localUser = new Bindable<APIUser>(createGuestUser());
+        private readonly Bindable<APIUser> localUser = new Bindable<APIUser>(new GuestUser());
         private readonly BindableList<APIRelation> friends = new BindableList<APIRelation>();
         private readonly BindableList<APIRelation> blocks = new BindableList<APIRelation>();
         private readonly BindableList<int> favouriteBeatmapSets = new BindableList<int>();
 
         private readonly Bindable<UserStatus> configStatus = new Bindable<UserStatus>();
         private readonly Bindable<bool> configSupporter = new Bindable<bool>();
+        private readonly Bindable<string> configGuestUsername = new Bindable<string>(GuestUser.DEFAULT_USERNAME);
 
         public LocalUserState(IAPIProvider api, OsuConfigManager config)
         {
@@ -34,11 +35,24 @@ namespace osu.Game.Online.API
 
             config.BindWith(OsuSetting.UserOnlineStatus, configStatus);
             config.BindWith(OsuSetting.WasSupporter, configSupporter);
+            config.BindWith(OsuSetting.GuestUsername, configGuestUsername);
+
+            // Run immediately, as the saved name has already been loaded by this point, and the guest the game starts with
+            // is otherwise left at the default name until a new one is created on logging out (or failing to log in).
+            configGuestUsername.BindValueChanged(name =>
+            {
+                // Renaming the guest in place keeps the bindable at its default value, which is used to detect a logged out state.
+                if (localUser.Value is not GuestUser guest)
+                    return;
+
+                guest.Username = string.IsNullOrWhiteSpace(name.NewValue) ? GuestUser.DEFAULT_USERNAME : name.NewValue;
+                localUser.TriggerChange();
+            }, true);
         }
 
         #region Logging in / out
 
-        private static APIUser createGuestUser() => new GuestUser();
+        private APIUser createGuestUser() => new GuestUser(configGuestUsername.Value);
 
         /// <summary>
         /// Show a placeholder user if saved credentials are available.

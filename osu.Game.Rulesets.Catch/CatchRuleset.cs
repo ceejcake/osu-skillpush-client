@@ -301,6 +301,9 @@ namespace osu.Game.Rulesets.Catch
         /// <seealso cref="CatchHitObject.ApplyDefaultsToSelf"/>
         public override BeatmapDifficulty GetAdjustedDisplayDifficulty(IBeatmapInfo beatmapInfo, IReadOnlyCollection<Mod> mods)
         {
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            mods = ModUtils.WithBpmLockApplied(mods, beatmapInfo.BPM);
+
             BeatmapDifficulty adjustedDifficulty = base.GetAdjustedDisplayDifficulty(beatmapInfo, mods);
             double rate = ModUtils.CalculateRateWithMods(mods);
 
@@ -313,6 +316,9 @@ namespace osu.Game.Rulesets.Catch
 
         public override IEnumerable<RulesetBeatmapAttribute> GetBeatmapAttributesForDisplay(IBeatmapInfo beatmapInfo, IReadOnlyCollection<Mod> mods)
         {
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            mods = ModUtils.WithBpmLockApplied(mods, beatmapInfo.BPM);
+
             var originalDifficulty = beatmapInfo.Difficulty;
             var effectiveDifficulty = GetAdjustedDisplayDifficulty(beatmapInfo, mods);
 

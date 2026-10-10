@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -21,6 +21,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input;
 using osu.Framework.Input.Bindings;
 using osu.Framework.Input.Events;
@@ -107,6 +108,12 @@ namespace osu.Game.Screens.Select
 
         private ModSelectOverlay modSelectOverlay = null!;
         private ModSpeedHotkeyHandler modSpeedHotkeyHandler = null!;
+
+        private ModSpacingHotkeyHandler modSpacingHotkeyHandler = null!;
+
+        private ModBpmLockHotkeyHandler modBpmLockHotkeyHandler = null!;
+
+        private BpmLockPromptOverlay bpmLockPrompt = null!;
 
         // Blue is the most neutral choice, so I'm using that for now.
         // Purple makes the most sense to match the "gameplay" flow, but it's a bit too strong for the current design.
@@ -309,7 +316,14 @@ namespace osu.Game.Screens.Select
                     Origin = Anchor.Centre,
                     RelativeSizeAxes = Axes.Both,
                 },
-                modSpeedHotkeyHandler = new ModSpeedHotkeyHandler()
+                modSpeedHotkeyHandler = new ModSpeedHotkeyHandler(),
+                modSpacingHotkeyHandler = new ModSpacingHotkeyHandler(),
+                modBpmLockHotkeyHandler = new ModBpmLockHotkeyHandler(),
+                bpmLockPrompt = new BpmLockPromptOverlay
+                {
+                    CurrentBpm = () => modBpmLockHotkeyHandler.CurrentBpm,
+                    OnCommit = bpm => modBpmLockHotkeyHandler.SetBpmLock(bpm, ModUtils.FlattenMods(game!.AvailableMods.Value.SelectMany(kv => kv.Value))),
+                }
             });
 
             LoadComponent(modSelectOverlay = CreateModSelectOverlay());
@@ -1053,6 +1067,16 @@ namespace osu.Game.Screens.Select
 
                 case GlobalAction.DecreaseModSpeed:
                     return modSpeedHotkeyHandler.ChangeSpeed(-0.05, flattenedMods);
+
+                case GlobalAction.IncreaseModSpacing:
+                    return modSpacingHotkeyHandler.ChangeSpacing(0.05, flattenedMods);
+
+                case GlobalAction.DecreaseModSpacing:
+                    return modSpacingHotkeyHandler.ChangeSpacing(-0.05, flattenedMods);
+
+                case GlobalAction.SetBpmLock:
+                    bpmLockPrompt.ToggleVisibility();
+                    return true;
             }
 
             return false;
@@ -1240,12 +1264,15 @@ namespace osu.Game.Screens.Select
                 yield return i;
         }
 
+        [Resolved]
+        private CollectionFolderManager? collectionFolders { get; set; }
+
         protected IEnumerable<OsuMenuItem> CreateCollectionMenuActions(BeatmapInfo beatmap)
         {
-            var collectionItems = realm.Realm.All<BeatmapCollection>()
-                                       .OrderBy(c => c.Name)
-                                       .AsEnumerable()
-                                       .Select(c => new CollectionToggleMenuItem(c.ToLive(realm), beatmap)).Cast<OsuMenuItem>().ToList();
+            var collectionItems = CollectionFolderManager.GroupMenuItems(collectionFolders, realm.Realm.All<BeatmapCollection>()
+                                                                                                 .OrderBy(c => c.Name)
+                                                                                                 .AsEnumerable()
+                                                                                                 .Select(c => (c.ID, (Func<MenuItem>)(() => new CollectionToggleMenuItem(c.ToLive(realm), beatmap)))));
 
             collectionItems.Add(new OsuMenuItem(CommonStrings.Manage, MenuItemType.Standard, () => manageCollectionsDialog?.Show()));
 

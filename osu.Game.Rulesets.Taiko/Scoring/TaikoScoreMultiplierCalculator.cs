@@ -16,7 +16,7 @@ namespace osu.Game.Rulesets.Taiko.Scoring
             #region Difficulty Reduction
 
             Single<TaikoModEasy>(hasMultiplier: 0.5);
-            Single<TaikoModNoFail>(hasMultiplier: 0.5);
+            // No Fail (1.0x)
             Single<TaikoModHalfTime>(hasMultiplier: halfTime => rateAdjustMultiplier(halfTime.SpeedChange.Value));
             Single<TaikoModDaycore>(hasMultiplier: daycore => rateAdjustMultiplier(daycore.SpeedChange.Value));
             Single<TaikoModSimplifiedRhythm>(hasMultiplier: 0.6);
@@ -39,7 +39,7 @@ namespace osu.Game.Rulesets.Taiko.Scoring
             #region Conversion
 
             // Random
-            Single<TaikoModDifficultyAdjust>(hasMultiplier: 0.5);
+            // Difficulty Adjust (1.0x)
             Single<TaikoModClassic>(hasMultiplier: _ => classicMultiplier(Context.Score));
             // Swap
             // Single Tap

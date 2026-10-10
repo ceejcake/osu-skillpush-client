@@ -173,7 +173,7 @@ namespace osu.Game.Screens.Edit.GameplayTest
 
         protected override bool CheckModsAllowFailure() => false; // never fail.
 
-        public bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
+        public override bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
         {
             if (e.Repeat)
                 return false;
@@ -203,12 +203,13 @@ namespace osu.Game.Screens.Edit.GameplayTest
                     return true;
 
                 default:
-                    return false;
+                    return base.OnPressed(e);
             }
         }
 
-        public void OnReleased(KeyBindingReleaseEvent<GlobalAction> e)
+        public override void OnReleased(KeyBindingReleaseEvent<GlobalAction> e)
         {
+            base.OnReleased(e);
         }
 
         private void toggleAutoplay()

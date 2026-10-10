@@ -85,6 +85,17 @@ namespace osu.Game.Tests.Visual.SongSelect
         }
 
         [Test]
+        public void TestStreamPracticeMapOffered()
+        {
+            ImportBeatmapForRuleset(0);
+            LoadSongSelect();
+
+            AddUntilStep("beatmap selected", () => !Beatmap.IsDefault);
+            AddAssert("stream practice map offered", () => SongSelect.GetForwardActions(Beatmap.Value.BeatmapInfo).Select(i => i.Text.Value.ToString()),
+                () => Does.Contain("Generate stream practice map"));
+        }
+
+        [Test]
         public void TestSingleFilterWhenEntering()
         {
             ImportBeatmapForRuleset(0);

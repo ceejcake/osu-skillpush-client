@@ -75,6 +75,7 @@ namespace osu.Game.Screens.Play.HUD.HitErrorMeters
 
         private Drawable[]? centreMarkerDrawables;
 
+
         public BarHitErrorMeter()
         {
             AutoSizeAxes = Axes.Both;
@@ -89,7 +90,7 @@ namespace osu.Game.Screens.Play.HUD.HitErrorMeters
 
             hitWindows = HitWindows.GetAllAvailableWindows().Where(w => w.result.IsHit()).ToArray();
 
-            InternalChild = new Container
+            InternalChild = SizeOverrideTarget = new Container
             {
                 AutoSizeAxes = Axes.X,
                 Height = bar_height,

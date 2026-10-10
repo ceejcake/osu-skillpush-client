@@ -715,11 +715,13 @@ namespace osu.Game.Online.API
         }
     }
 
-    internal class GuestUser : APIUser
+    public class GuestUser : APIUser
     {
-        public GuestUser()
+        public const string DEFAULT_USERNAME = @"Guest";
+
+        public GuestUser(string username = null)
         {
-            Username = @"Guest";
+            Username = string.IsNullOrWhiteSpace(username) ? DEFAULT_USERNAME : username;
             Id = SYSTEM_USER_ID;
         }
     }

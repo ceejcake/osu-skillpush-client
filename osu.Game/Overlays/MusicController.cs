@@ -22,6 +22,7 @@ using osu.Game.Configuration;
 using osu.Game.Database;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Seasonal;
+using osu.Game.Audio;
 
 namespace osu.Game.Overlays
 {
@@ -83,6 +84,7 @@ namespace osu.Game.Overlays
         [BackgroundDependencyLoader]
         private void load(AudioManager audio, OsuConfigManager configManager)
         {
+            configManager.BindWith(OsuSetting.MusicPitch, musicPitch);
             AddInternal(audioDuckFilter = new AudioFilter(audio.TrackMixer));
             audio.Tracks.AddAdjustment(AdjustableProperty.Volume, audioDuckVolume);
             sampleVolume = audio.VolumeSample.GetBoundCopy();
@@ -567,6 +569,10 @@ namespace osu.Game.Overlays
 
         private AudioAdjustments? modTrackAdjustments;
 
+        private readonly Bindable<double> musicPitch = new Bindable<double>(1);
+
+        private MusicPitchShift? pitchShift;
+
         /// <summary>
         /// Resets the adjustments currently applied on <see cref="CurrentTrack"/> and applies the mod adjustments if <see cref="ApplyModTrackAdjustments"/> is <c>true</c>.
         /// </summary>
@@ -587,6 +593,10 @@ namespace osu.Game.Overlays
 
                 foreach (var mod in mods.Value.OfType<IApplicableToTrack>())
                     mod.ApplyToTrack(modTrackAdjustments);
+
+                // Heard wherever the mods are, though it isn't one, so that it can be used at any speed without affecting scores.
+                pitchShift?.Dispose();
+                pitchShift = new MusicPitchShift(modTrackAdjustments, musicPitch);
             }
         }
     }

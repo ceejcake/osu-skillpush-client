@@ -4,6 +4,7 @@
 #nullable disable
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -15,6 +16,8 @@ using osu.Framework.Bindables;
 using osu.Framework.Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Input.Bindings;
+using osu.Framework.Input.Events;
 using osu.Framework.Logging;
 using osu.Framework.Screens;
 using osu.Framework.Threading;
@@ -25,9 +28,12 @@ using osu.Game.Database;
 using osu.Game.Extensions;
 using osu.Game.Graphics.Containers;
 using osu.Game.IO.Archives;
+using osu.Game.Input.Bindings;
 using osu.Game.Online.API;
 using osu.Game.Overlays;
+using osu.Game.Overlays.OSD;
 using osu.Game.Rulesets;
+using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.UI;
@@ -43,7 +49,7 @@ using osuTK.Graphics;
 namespace osu.Game.Screens.Play
 {
     [Cached]
-    public abstract partial class Player : ScreenWithBeatmapBackground, ISamplePlaybackDisabler, ILocalUserPlayInfo
+    public abstract partial class Player : ScreenWithBeatmapBackground, ISamplePlaybackDisabler, ILocalUserPlayInfo, IKeyBindingHandler<GlobalAction>
     {
         /// <summary>
         /// The delay upon completion of the beatmap before displaying the results screen.
@@ -175,7 +181,15 @@ namespace osu.Game.Screens.Play
         /// Whether failing should be allowed.
         /// By default, this checks whether all selected mods allow failing.
         /// </summary>
-        protected virtual bool CheckModsAllowFailure() => GameplayState.Mods.OfType<IApplicableFailOverride>().All(m => m.PerformFail());
+        protected virtual bool CheckModsAllowFailure()
+        {
+            // Objects skipped over by a practice seek are judged as misses, which would otherwise fail the player
+            // before the statistics are reset.
+            if (practiceSeekTarget != null)
+                return false;
+
+            return GameplayState.Mods.OfType<IApplicableFailOverride>().All(m => m.PerformFail());
+        }
 
         public readonly PlayerConfiguration Configuration;
 
@@ -209,6 +223,8 @@ namespace osu.Game.Screens.Play
 
             PrepareReplay();
 
+            strainGraphOverlay.State.BindValueChanged(updateGameplayStateForStrainGraph);
+
             ScoreProcessor.NewJudgement += _ => ScoreProcessor.PopulateScore(Score.ScoreInfo);
             ScoreProcessor.OnResetFromReplayFrame += () => ScoreProcessor.PopulateScore(Score.ScoreInfo);
 
@@ -223,9 +239,18 @@ namespace osu.Game.Screens.Play
             DrawableRuleset.SetRecordTarget(Score);
         }
 
+        /// <summary>
+        /// The pitch of the music, set from the mod select overlay.
+        /// </summary>
+        private Bindable<double> musicPitch = null!;
+
+        private MusicPitchShift? musicPitchShift;
+
         [BackgroundDependencyLoader(true)]
         private void load(OsuConfigManager config, OsuGameBase game, CancellationToken cancellationToken)
         {
+            musicPitch = config.GetBindable<double>(OsuSetting.MusicPitch);
+
             var gameplayMods = Mods.Value.Select(m => m.DeepClone()).ToArray();
 
             if (gameplayMods.Any(m => m is UnknownMod))
@@ -398,6 +423,9 @@ namespace osu.Game.Screens.Play
 
             DrawableRuleset.NewResult += r =>
             {
+                if (practiceResetPerformed)
+                    resultsSincePracticeReset.Add(r);
+
                 HealthProcessor.ApplyResult(r);
                 ScoreProcessor.ApplyResult(r);
                 GameplayState.ApplyResult(r);
@@ -405,6 +433,10 @@ namespace osu.Game.Screens.Play
 
             DrawableRuleset.RevertResult += r =>
             {
+                // Judgements from before a practice reset are no longer part of the processors' state, so they can't be reverted.
+                if (practiceResetPerformed && !resultsSincePracticeReset.Remove(r))
+                    return;
+
                 HealthProcessor.RevertResult(r);
                 ScoreProcessor.RevertResult(r);
             };
@@ -431,6 +463,8 @@ namespace osu.Game.Screens.Play
 
             IsBreakTime.BindTo(breakTracker.IsBreakTime);
             IsBreakTime.BindValueChanged(onBreakTimeChanged, true);
+
+            breakTracker.CurrentPeriod.BindValueChanged(onBreakPeriodChanged, true);
         }
 
         protected virtual GameplayClockContainer CreateGameplayClockContainer(WorkingBeatmap beatmap, double gameplayStart) => new MasterGameplayClockContainer(beatmap, gameplayStart);
@@ -516,6 +550,7 @@ namespace osu.Game.Screens.Play
                         RequestSkip = () => progressToResults(false),
                         Alpha = 0
                     },
+                    breakSkipContainer = new Container { RelativeSizeAxes = Axes.Both },
                     DrawableRuleset.ResumeOverlay?.CreateProxy() ?? new Container(),
                     PauseOverlay = new PauseOverlay
                     {
@@ -523,6 +558,10 @@ namespace osu.Game.Screens.Play
                         Retries = RestartCount,
                         OnRetry = () => Restart(),
                         OnQuit = () => PerformExitWithConfirmation(),
+                    },
+                    strainGraphOverlay = new StrainGraphOverlay
+                    {
+                        RequestSeek = time => seekForPractice(time, moveCheckpoint: true),
                     },
                 },
             };
@@ -731,11 +770,88 @@ namespace osu.Game.Screens.Play
             updateSampleDisabledState();
         }
 
+        #region Break skipping
+
+        /// <summary>
+        /// How much of a break is left in place when it is skipped, to give the player time to prepare for the next object.
+        /// </summary>
+        private const double break_skip_lead_in = 2000;
+
+        /// <summary>
+        /// The minimum amount of break time a skip has to save for it to be offered at all.
+        /// </summary>
+        private const double minimum_break_skip_gain = 1000;
+
+        private Container breakSkipContainer;
+
+        private void onBreakPeriodChanged(ValueChangedEvent<Period?> period)
+        {
+            // Each break gets its own overlay, which is disposed of along with the break.
+            breakSkipContainer.Clear();
+
+            if (period.NewValue == null)
+                return;
+
+            if (!Configuration.AllowSkipping || !DrawableRuleset.AllowGameplayOverlays)
+                return;
+
+            var currentBreak = period.NewValue.Value;
+
+            if (currentBreak.End - GameplayClockContainer.CurrentTime < break_skip_lead_in + minimum_break_skip_gain)
+                return;
+
+            breakSkipContainer.Child = CreateSkipOverlay(currentBreak.End).With(o =>
+            {
+                o.RequestSkip = () => skipBreak(currentBreak);
+            });
+        }
+
+        /// <summary>
+        /// Skips most of the given break, stopping short of its end so that gameplay doesn't resume without warning.
+        /// </summary>
+        private void skipBreak(Period currentBreak)
+        {
+            double target = currentBreak.End - break_skip_lead_in;
+
+            if (GameplayClockContainer.CurrentTime >= target)
+                return;
+
+            // Matching the intro skip, stop any samples which are currently playing.
+            samplePlaybackDisabled.Value = true;
+
+            SeekInstantly(target);
+
+            updateSampleDisabledState();
+        }
+
+        #endregion
+
         /// <summary>
         /// Seek to a specific time in gameplay.
         /// </summary>
         /// <param name="time">The destination time to seek to.</param>
         public void Seek(double time) => GameplayClockContainer.Seek(time);
+
+        /// <summary>
+        /// Seek to a specific time in gameplay without waiting for frame stable playback to catch up.
+        /// </summary>
+        /// <remarks>
+        /// Intermediate hitobject judgements may not be applied or reverted correctly during this seek.
+        /// </remarks>
+        /// <param name="time">The destination time to seek to.</param>
+        protected void SeekInstantly(double time)
+        {
+            if (frameStablePlaybackResetDelegate?.Cancelled == false && !frameStablePlaybackResetDelegate.Completed)
+                frameStablePlaybackResetDelegate.RunTask();
+
+            bool wasFrameStable = DrawableRuleset.FrameStablePlayback;
+            DrawableRuleset.FrameStablePlayback = false;
+
+            Seek(time);
+
+            // Delay resetting frame-stable playback for one frame to give the FrameStabilityContainer a chance to seek.
+            frameStablePlaybackResetDelegate = ScheduleAfterChildren(() => DrawableRuleset.FrameStablePlayback = wasFrameStable);
+        }
 
         private ScheduledDelegate frameStablePlaybackResetDelegate;
 
@@ -826,6 +942,11 @@ namespace osu.Game.Screens.Play
                 return;
             }
 
+            handleGameplayCompleted();
+        }
+
+        private void handleGameplayCompleted()
+        {
             // Only show the completion screen if the player hasn't failed
             if (GameplayState.HasFailed)
                 return;
@@ -900,6 +1021,279 @@ namespace osu.Game.Screens.Play
             Scheduler.Add(resultsDisplayDelegate);
         }
 
+        #region Practice seeking
+
+        private StrainGraphOverlay strainGraphOverlay;
+
+        /// <summary>
+        /// Whether the user has seeked during this play, which means the score can no longer be considered a valid play
+        /// of the beatmap. Such a score is neither displayed, saved locally nor submitted.
+        /// </summary>
+        public bool GameplayInvalidatedBySeeking { get; private set; }
+
+        /// <summary>
+        /// How far the practice seek hotkeys move through the beatmap.
+        /// </summary>
+        private const double practice_seek_amount = 5000;
+
+        public virtual bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
+        {
+            // Seeking is allowed to repeat, so that holding the key scrubs through the beatmap.
+            switch (e.Action)
+            {
+                case GlobalAction.PracticeSeekBackward:
+                    return seekRelativeForPractice(-practice_seek_amount);
+
+                case GlobalAction.PracticeSeekForward:
+                    return seekRelativeForPractice(practice_seek_amount);
+            }
+
+            if (e.Repeat)
+                return false;
+
+            switch (e.Action)
+            {
+                case GlobalAction.TogglePracticeCheckpoint:
+                    return togglePracticeCheckpoint();
+
+                case GlobalAction.ToggleStrainGraph:
+                    if (!Configuration.AllowUserInteraction || !LoadedBeatmapSuccessfully)
+                        return false;
+
+                    strainGraphOverlay.ToggleVisibility();
+                    return true;
+            }
+
+            return false;
+        }
+
+        public virtual void OnReleased(KeyBindingReleaseEvent<GlobalAction> e)
+        {
+        }
+
+        [Resolved]
+        private SessionStatics statics { get; set; }
+
+        [Resolved(canBeNull: true)]
+        private OnScreenDisplay onScreenDisplay { get; set; }
+
+        /// <summary>
+        /// Toggles whether restarting this beatmap begins from the last point seeked to, rather than from the start.
+        /// </summary>
+        private bool togglePracticeCheckpoint()
+        {
+            if (!Configuration.AllowUserInteraction || !LoadedBeatmapSuccessfully)
+                return false;
+
+            var checkpoint = statics.Get<PracticeCheckpoint>(Static.PracticeCheckpoint);
+
+            if (checkpoint != null && checkpoint.BeatmapID == Beatmap.Value.BeatmapInfo.ID)
+            {
+                clearPracticeCheckpoint();
+                onScreenDisplay?.Display(new PracticeCheckpointToast(null));
+                return true;
+            }
+
+            setPracticeCheckpoint(GameplayClockContainer.CurrentTime);
+            return true;
+        }
+
+        /// <summary>
+        /// Removes the practice checkpoint for this beatmap, if one is set.
+        /// </summary>
+        private void clearPracticeCheckpoint()
+        {
+            var checkpoint = statics.Get<PracticeCheckpoint>(Static.PracticeCheckpoint);
+
+            if (checkpoint == null || checkpoint.BeatmapID != Beatmap.Value.BeatmapInfo.ID)
+                return;
+
+            statics.SetValue<PracticeCheckpoint>(Static.PracticeCheckpoint, null);
+        }
+
+        private void setPracticeCheckpoint(double time)
+        {
+            statics.SetValue<PracticeCheckpoint>(Static.PracticeCheckpoint, new PracticeCheckpoint(Beatmap.Value.BeatmapInfo.ID, time));
+            onScreenDisplay?.Display(new PracticeCheckpointToast(time));
+        }
+
+        private bool practiceCheckpointApplied;
+
+        /// <summary>
+        /// Starts gameplay at the practice checkpoint set for this beatmap, if there is one.
+        /// </summary>
+        /// <remarks>
+        /// This waits for gameplay to be running, as seeking pushes judgements through components (the replay recorder
+        /// in particular) which are not ready to receive them until then.
+        /// </remarks>
+        private void applyPracticeCheckpointWhenRunning()
+        {
+            if (practiceCheckpointApplied || !LoadedBeatmapSuccessfully)
+                return;
+
+            if (GameplayClockContainer.IsPaused.Value || !DrawableRuleset.IsLoaded)
+                return;
+
+            practiceCheckpointApplied = true;
+
+            var checkpoint = statics.Get<PracticeCheckpoint>(Static.PracticeCheckpoint);
+
+            if (checkpoint == null || checkpoint.BeatmapID != Beatmap.Value.BeatmapInfo.ID)
+                return;
+
+            // Starting partway through is not a valid play of the beatmap, for the same reasons seeking isn't.
+            GameplayInvalidatedBySeeking = true;
+
+            // A plain seek, rather than `SetGameplayStartTime`: that resets the clock, which leaves it stopped when
+            // gameplay is already running by this point.
+            SeekInstantly(checkpoint.Time);
+        }
+
+        /// <summary>
+        /// The time a practice seek is currently settling at, if any.
+        /// </summary>
+        /// <remarks>
+        /// Statistics are reset once the seek has settled, so that the objects skipped over don't count against the player.
+        /// </remarks>
+        private double? practiceSeekTarget;
+
+        /// <summary>
+        /// How far apart the gameplay and frame stable clocks may be for a practice seek to be considered settled.
+        /// </summary>
+        private const double seek_settle_tolerance = 100;
+
+        private const int frames_before_practice_reset = 5;
+
+        private int practiceSeekSettledFrames;
+
+        private bool practiceResetPerformed;
+
+        /// <summary>
+        /// Judgements applied since the last practice reset, which are the only ones that may be reverted afterwards.
+        /// </summary>
+        private readonly HashSet<JudgementResult> resultsSincePracticeReset = new HashSet<JudgementResult>();
+
+        /// <summary>
+        /// Seeks gameplay by the given amount of time in response to a user request.
+        /// </summary>
+        /// <returns>Whether the seek was performed.</returns>
+        private bool seekRelativeForPractice(double amount)
+        {
+            if (!Configuration.AllowUserInteraction || !LoadedBeatmapSuccessfully)
+                return false;
+
+            // Replays do their own seeking, which keeps the displayed score in line with the replay.
+            if (DrawableRuleset.HasReplayLoaded.Value)
+                return false;
+
+            // Seeking with the hotkeys is for looking around, so it deliberately leaves any practice checkpoint alone.
+            seekForPractice(Math.Clamp(GameplayClockContainer.CurrentTime + amount, 0, GameplayState.Beatmap.GetLastObjectTime()));
+            return true;
+        }
+
+        /// <summary>
+        /// Seeks gameplay to the given time in response to a user request from <see cref="StrainGraphOverlay"/>,
+        /// and marks the play as invalidated.
+        /// </summary>
+        private void seekForPractice(double time, bool moveCheckpoint = false)
+        {
+            GameplayInvalidatedBySeeking = true;
+            practiceSeekTarget = time;
+            practiceSeekSettledFrames = 0;
+
+            // A checkpoint which is already set follows the point picked out of the strain graph.
+            if (moveCheckpoint && statics.Get<PracticeCheckpoint>(Static.PracticeCheckpoint) != null)
+                setPracticeCheckpoint(time);
+
+            // A frame-stable seek would replay everything in between at high speed to keep judgements accurate,
+            // which is both slow and pointless here, given the statistics are discarded anyway.
+            SeekInstantly(time);
+
+            strainGraphOverlay.Hide();
+        }
+
+        /// <summary>
+        /// How long after the final object a seeked play waits before showing its results.
+        /// </summary>
+        private const double invalidated_play_completion_delay = 1500;
+
+        protected override void Update()
+        {
+            base.Update();
+
+            applyPracticeCheckpointWhenRunning();
+            updateInvalidatedPlayCompletion();
+
+            if (practiceSeekTarget == null)
+                return;
+
+            // Skipped objects are judged over the frames following the seek, so the reset has to wait for that to finish.
+            // Objects skipped over are judged while the frame stable clock catches up with the seek, so the reset has to
+            // wait for the two clocks to line up again and stay that way for a few frames.
+            if (DrawableRuleset.FrameStableClock.IsCatchingUp.Value
+                || Math.Abs(DrawableRuleset.FrameStableClock.CurrentTime - GameplayClockContainer.CurrentTime) > seek_settle_tolerance)
+            {
+                practiceSeekSettledFrames = 0;
+                return;
+            }
+
+            if (++practiceSeekSettledFrames < frames_before_practice_reset)
+                return;
+
+            practiceSeekTarget = null;
+            practiceResetPerformed = true;
+            resultsSincePracticeReset.Clear();
+
+            ScoreProcessor.ResetToDefaultState();
+            HealthProcessor.ResetToDefaultState();
+            ScoreProcessor.PopulateScore(Score.ScoreInfo);
+        }
+
+        /// <summary>
+        /// Ends a seeked play once the beatmap is over.
+        /// </summary>
+        /// <remarks>
+        /// Objects skipped over are never judged, so <see cref="JudgementProcessor.HasCompleted"/> is never satisfied for such a play.
+        /// Without this, gameplay would simply run past the end of the beatmap and sit there.
+        /// </remarks>
+        private void updateInvalidatedPlayCompletion()
+        {
+            if (!GameplayInvalidatedBySeeking || !LoadedBeatmapSuccessfully)
+                return;
+
+            if (GameplayState.HasPassed || GameplayState.HasFailed || practiceSeekTarget != null)
+                return;
+
+            if (!this.IsCurrentScreen() || ScoreProcessor.HasCompleted.Value)
+                return;
+
+            if (GameplayClockContainer.CurrentTime < GameplayState.Beatmap.GetLastObjectTime() + invalidated_play_completion_delay)
+                return;
+
+            handleGameplayCompleted();
+        }
+
+        /// <summary>
+        /// Freezes gameplay for as long as the strain graph is displayed, so that a practice target can be picked at leisure.
+        /// </summary>
+        private void updateGameplayStateForStrainGraph(ValueChangedEvent<Visibility> state)
+        {
+            if (state.NewValue == Visibility.Visible)
+            {
+                pausedForStrainGraph = !GameplayClockContainer.IsPaused.Value;
+                GameplayClockContainer.Stop();
+            }
+            else if (pausedForStrainGraph)
+            {
+                pausedForStrainGraph = false;
+                GameplayClockContainer.Start();
+            }
+        }
+
+        private bool pausedForStrainGraph;
+
+        #endregion
+
         /// <summary>
         /// Asynchronously run score preparation operations (database import, online submission etc.).
         /// </summary>
@@ -914,8 +1308,10 @@ namespace osu.Game.Screens.Play
             if (prepareScoreForDisplayTask != null)
                 return prepareScoreForDisplayTask;
 
-            // We do not want to import the score in cases where we don't show results
-            bool canShowResults = Configuration.ShowResults && ScoreProcessor.HasCompleted.Value && GameplayState.HasPassed;
+            // We do not want to import the score in cases where we don't show results.
+            // A seeked play never judges every object, so its completion is determined by the clock instead (see `Update`).
+            bool gameplayCompleted = ScoreProcessor.HasCompleted.Value || GameplayInvalidatedBySeeking;
+            bool canShowResults = Configuration.ShowResults && gameplayCompleted && GameplayState.HasPassed;
             if (!canShowResults && !forceImport)
                 return Task.FromResult<ScoreInfo>(null);
 
@@ -937,7 +1333,10 @@ namespace osu.Game.Screens.Play
 
                 try
                 {
-                    await ImportScore(scoreCopy).ConfigureAwait(false);
+                    // A play which was seeked through is shown on the results screen, but is not a valid play of the
+                    // beatmap, so it is never stored locally (nor submitted, see `SubmittingPlayer`).
+                    if (!GameplayInvalidatedBySeeking)
+                        await ImportScore(scoreCopy).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -1154,6 +1553,10 @@ namespace osu.Game.Screens.Play
             foreach (var mod in GameplayState.Mods.OfType<IApplicableToTrack>())
                 mod.ApplyToTrack(GameplayClockContainer.AdjustmentsFromMods);
 
+            // Only the music's pitch changes, so the speed of play (and the score) is unaffected.
+            musicPitchShift?.Dispose();
+            musicPitchShift = new MusicPitchShift(GameplayClockContainer.AdjustmentsFromMods, musicPitch);
+
             updateGameplayState();
 
             GameplayClockContainer.FadeInFromZero(750, Easing.OutQuint);
@@ -1210,6 +1613,10 @@ namespace osu.Game.Screens.Play
                 if (DrawableRuleset.ReplayScore == null)
                     ScoreProcessor.FailScore(Score.ScoreInfo);
             }
+
+            // Leaving the beatmap ends the practice session, while restarting is the whole point of a checkpoint.
+            if (!isRestarting)
+                clearPracticeCheckpoint();
 
             // GameplayClockContainer performs seeks / start / stop operations on the beatmap's track.
             // as we are no longer the current screen, we cannot guarantee the track is still usable.

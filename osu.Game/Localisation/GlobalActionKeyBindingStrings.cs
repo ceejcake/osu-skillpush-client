@@ -440,6 +440,41 @@ namespace osu.Game.Localisation
         public static LocalisableString DecreaseModSpeed => new TranslatableString(getKey(@"decrease_mod_speed"), @"Decrease mod speed");
 
         /// <summary>
+        /// "Increase mod spacing"
+        /// </summary>
+        public static LocalisableString IncreaseModSpacing => new TranslatableString(getKey(@"increase_mod_spacing"), @"Increase mod spacing");
+
+        /// <summary>
+        /// "Decrease mod spacing"
+        /// </summary>
+        public static LocalisableString DecreaseModSpacing => new TranslatableString(getKey(@"decrease_mod_spacing"), @"Decrease mod spacing");
+
+        /// <summary>
+        /// "Toggle strain graph (practice)"
+        /// </summary>
+        public static LocalisableString ToggleStrainGraph => new TranslatableString(getKey(@"toggle_strain_graph"), @"Toggle strain graph (practice)");
+
+        /// <summary>
+        /// "Seek backwards (practice)"
+        /// </summary>
+        public static LocalisableString PracticeSeekBackward => new TranslatableString(getKey(@"practice_seek_backward"), @"Seek backwards (practice)");
+
+        /// <summary>
+        /// "Seek forwards (practice)"
+        /// </summary>
+        public static LocalisableString PracticeSeekForward => new TranslatableString(getKey(@"practice_seek_forward"), @"Seek forwards (practice)");
+
+        /// <summary>
+        /// "Set BPM lock"
+        /// </summary>
+        public static LocalisableString SetBpmLock => new TranslatableString(getKey(@"set_bpm_lock"), @"Set BPM lock");
+
+        /// <summary>
+        /// "Toggle restarting from the last seek (practice)"
+        /// </summary>
+        public static LocalisableString TogglePracticeCheckpoint => new TranslatableString(getKey(@"toggle_practice_checkpoint"), @"Toggle restarting from the last seek (practice)");
+
+        /// <summary>
         /// "Seek to previous hit object"
         /// </summary>
         public static LocalisableString EditorSeekToPreviousHitObject => new TranslatableString(getKey(@"editor_seek_to_previous_hit_object"), @"Seek to previous hit object");

@@ -16,6 +16,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Testing;
 using osu.Framework.Threading;
 using osu.Framework.Utils;
+using osu.Game.Configuration;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Mania.Scoring;
@@ -29,6 +30,7 @@ using osu.Game.Rulesets.Taiko.Scoring;
 using osu.Game.Rulesets.UI;
 using osu.Game.Scoring;
 using osu.Game.Screens.Play.HUD.HitErrorMeters;
+using osuTK;
 
 namespace osu.Game.Tests.Visual.Gameplay
 {
@@ -39,6 +41,9 @@ namespace osu.Game.Tests.Visual.Gameplay
 
         [Cached(typeof(DrawableRuleset))]
         private TestDrawableRuleset drawableRuleset = new TestDrawableRuleset();
+
+        [Resolved]
+        private OsuConfigManager config { get; set; } = null!;
 
         [SetUpSteps]
         public void SetUp()
@@ -84,6 +89,54 @@ namespace osu.Game.Tests.Visual.Gameplay
                 }, 10, true);
             });
             AddUntilStep("wait for barrage", () => del.Cancelled);
+        }
+
+        [Test]
+        public void TestGlobalSizeOverride()
+        {
+            HitErrorMeter small = null!;
+            HitErrorMeter large = null!;
+            HitErrorMeter legacySmall = null!;
+            HitErrorMeter legacyLarge = null!;
+
+            AddStep("create meters with different skin scales", () =>
+            {
+                drawableRuleset.HitWindows = new OsuHitWindows();
+                drawableRuleset.HitWindows.SetDifficulty(5);
+
+                Clear();
+                Add(small = new BarHitErrorMeter { Anchor = Anchor.CentreLeft, Origin = Anchor.CentreLeft, Scale = new Vector2(0.5f) });
+                // Simulates a skin / ruleset placing the meter inside a scaled container.
+                Add(new Container
+                {
+                    Anchor = Anchor.CentreRight,
+                    Origin = Anchor.CentreRight,
+                    AutoSizeAxes = Axes.Both,
+                    Scale = new Vector2(1.5f),
+                    Child = large = new BarHitErrorMeter { Scale = new Vector2(2f) },
+                });
+                Add(legacySmall = new LegacyBarHitErrorMeter { Anchor = Anchor.TopCentre, Origin = Anchor.TopCentre, Scale = new Vector2(0.7f) });
+                Add(legacyLarge = new LegacyBarHitErrorMeter { Anchor = Anchor.BottomCentre, Origin = Anchor.BottomCentre, Scale = new Vector2(2.5f) });
+            });
+
+            AddStep("disable override", () => config.SetValue(OsuSetting.HitErrorBarSizeOverride, false));
+            AddUntilStep("bar sizes follow skin scale", () => large.ScreenSpaceDrawQuad.Height > small.ScreenSpaceDrawQuad.Height * 3);
+            AddUntilStep("legacy sizes follow skin scale", () => legacyLarge.ScreenSpaceDrawQuad.Width > legacySmall.ScreenSpaceDrawQuad.Width * 3);
+
+            AddStep("enable override", () =>
+            {
+                config.SetValue(OsuSetting.HitErrorBarSize, 1.5f);
+                config.SetValue(OsuSetting.HitErrorBarSizeOverride, true);
+            });
+            AddUntilStep("bar sizes equal", () => Precision.AlmostEquals(large.ScreenSpaceDrawQuad.Height, small.ScreenSpaceDrawQuad.Height, 0.5f));
+            AddUntilStep("legacy sizes equal", () => Precision.AlmostEquals(legacyLarge.ScreenSpaceDrawQuad.Width, legacySmall.ScreenSpaceDrawQuad.Width, 0.5f));
+            AddAssert("skin scale untouched", () => small.Scale.X == 0.5f && large.Scale.X == 2f && legacyLarge.Scale.X == 2.5f);
+
+            AddStep("change size", () => config.SetValue(OsuSetting.HitErrorBarSize, 0.5f));
+            AddUntilStep("legacy shrinks", () => legacyLarge.ScreenSpaceDrawQuad.Width < legacySmall.ScreenSpaceDrawQuad.Width * 1.01f
+                                                 && legacyLarge.ScreenSpaceDrawQuad.Width < 200);
+
+            AddStep("disable override", () => config.SetValue(OsuSetting.HitErrorBarSizeOverride, false));
         }
 
         [Test]

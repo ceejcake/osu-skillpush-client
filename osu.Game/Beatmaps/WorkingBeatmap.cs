@@ -314,6 +314,13 @@ namespace osu.Game.Beatmaps
                 }
             }
 
+            // Mods which override difficulty outright are applied afterwards, so that they have the final say.
+            foreach (var mod in mods.OfType<IApplicableToDifficultyWithMods>())
+            {
+                token.ThrowIfCancellationRequested();
+                mod.ApplyToDifficulty(mods, converted.Difficulty);
+            }
+
             var processor = rulesetInstance.CreateBeatmapProcessor(converted);
 
             if (processor != null)

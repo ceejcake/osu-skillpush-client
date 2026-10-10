@@ -1,12 +1,14 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
 using System.Collections.Generic;
 using osu.Framework.Allocation;
+using osu.Framework.Extensions;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
+using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
@@ -92,10 +94,21 @@ namespace osu.Game.Collections
                             IsTextBoxHovered = v => TextBox.ReceivePositionalInputAt(v)
                         }
                         : Empty(),
+                    collection.IsManaged
+                        ? new FolderButton(collection)
+                        {
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.CentreLeft,
+                        }
+                        : Empty(),
                     new Container
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Padding = new MarginPadding { Right = collection.IsManaged ? button_width : 0 },
+                        Padding = new MarginPadding
+                        {
+                            Left = collection.IsManaged ? button_width : 0,
+                            Right = collection.IsManaged ? button_width : 0
+                        },
                         Children = new Drawable[]
                         {
                             TextBox = new ItemTextBox(collection)
@@ -134,6 +147,37 @@ namespace osu.Game.Collections
             private readonly Live<BeatmapCollection> collection;
 
             private OsuSpriteText countText = null!;
+            private OsuSpriteText? folderText;
+
+            [Resolved]
+            private CollectionFolderManager? collectionFolders { get; set; }
+
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+
+                if (collectionFolders != null)
+                    collectionFolders.FoldersChanged += updateFolderText;
+
+                updateFolderText();
+            }
+
+            private void updateFolderText()
+            {
+                if (folderText == null)
+                    return;
+
+                var itemFolders = collection.PerformRead(c => c.IsValid ? collectionFolders?.GetFolders(c.ID) : null);
+                folderText.Text = itemFolders?.Count > 0 ? $"in {string.Join(", ", itemFolders)}" : string.Empty;
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                base.Dispose(isDisposing);
+
+                if (collectionFolders != null)
+                    collectionFolders.FoldersChanged -= updateFolderText;
+            }
 
             public ItemTextBox(Live<BeatmapCollection> collection)
             {
@@ -154,14 +198,28 @@ namespace osu.Game.Collections
                     TextContainer.Height *= (Height - count_text_size) / Height;
                     TextContainer.Margin = new MarginPadding { Bottom = count_text_size };
 
-                    TextContainer.Add(countText = new OsuSpriteText
+                    TextContainer.Add(new FillFlowContainer
                     {
                         Anchor = Anchor.BottomLeft,
                         Origin = Anchor.TopLeft,
                         Depth = float.MinValue,
-                        Font = OsuFont.Default.With(size: count_text_size, weight: FontWeight.SemiBold),
+                        AutoSizeAxes = Axes.Both,
+                        Direction = FillDirection.Horizontal,
+                        Spacing = new Vector2(8, 0),
                         Margin = new MarginPadding { Top = 2, Left = 2 },
-                        Colour = colours.Yellow
+                        Children = new Drawable[]
+                        {
+                            countText = new OsuSpriteText
+                            {
+                                Font = OsuFont.Default.With(size: count_text_size, weight: FontWeight.SemiBold),
+                                Colour = colours.Yellow
+                            },
+                            folderText = new OsuSpriteText
+                            {
+                                Font = OsuFont.Default.With(size: count_text_size, weight: FontWeight.SemiBold),
+                                Colour = colours.BlueLight,
+                            },
+                        }
                     });
 
                     // interestingly, it is not required to subscribe to change notifications on this collection at all for this to work correctly.
@@ -176,6 +234,26 @@ namespace osu.Game.Collections
                     PlaceholderText = CollectionsStrings.CreateNew;
                 }
             }
+        }
+
+        /// <summary>
+        /// Shows a popover to move the collection into a folder.
+        /// </summary>
+        public partial class FolderButton : IconButton, IHasPopover
+        {
+            private readonly Live<BeatmapCollection> collection;
+
+            public FolderButton(Live<BeatmapCollection> collection)
+            {
+                this.collection = collection;
+
+                Icon = FontAwesome.Solid.FolderOpen;
+                TooltipText = "Folders";
+                Size = new Vector2(button_width, item_height);
+                Action = this.ShowPopover;
+            }
+
+            public Popover GetPopover() => new CollectionFolderPopover(collection.ID);
         }
 
         public partial class DeleteButton : OsuClickableContainer

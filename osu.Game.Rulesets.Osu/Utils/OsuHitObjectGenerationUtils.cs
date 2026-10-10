@@ -2,9 +2,11 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using osu.Game.Rulesets.Osu.UI;
 using osu.Game.Rulesets.Objects;
+using osu.Game.Rulesets.Objects.Types;
 using osu.Game.Rulesets.Osu.Beatmaps;
 using osu.Game.Rulesets.Osu.Objects;
 using osuTK;
@@ -135,6 +137,50 @@ namespace osu.Game.Rulesets.Osu.Utils
             static void reflectControlPoint(PathControlPoint point) => point.Position = new Vector2(point.Position.X, -point.Position.Y);
 
             modifySlider(slider, reflectControlPoint);
+        }
+
+        /// <summary>
+        /// Turns the <see cref="OsuHitObject"/> a quarter turn around the centre of the playfield, stretched so that the playfield
+        /// is still filled edge to edge: what spanned the playfield's width now spans its height, and the other way around.
+        /// </summary>
+        /// <remarks>
+        /// Sliders keep their duration, moving faster or slower to cover their new length.
+        /// </remarks>
+        /// <param name="osuObject">The object to rotate.</param>
+        /// <param name="clockwise">Whether to turn clockwise, as seen on screen.</param>
+        public static void RotateQuarterTurnAlongPlayfield(OsuHitObject osuObject, bool clockwise)
+        {
+            float direction = clockwise ? 1 : -1;
+            float widthOverHeight = OsuPlayfield.BASE_SIZE.X / OsuPlayfield.BASE_SIZE.Y;
+
+            // Y points down the screen, so (x, y) -> (-y, x) is clockwise.
+            Vector2 turn(Vector2 v) => new Vector2(-direction * v.Y * widthOverHeight, direction * v.X / widthOverHeight);
+
+            osuObject.Position = playfield_middle + turn(osuObject.Position - playfield_middle);
+
+            if (osuObject is not Slider slider)
+                return;
+
+            // Stretching turns circular arcs into ellipses, which control points can't describe,
+            // so the path is rebuilt from the curve as it is actually drawn.
+            var vertices = new List<Vector2>();
+            slider.Path.GetPathToProgress(vertices, 0, 1);
+
+            if (vertices.Count < 2)
+                return;
+
+            var controlPoints = new PathControlPoint[vertices.Count];
+            double length = 0;
+
+            for (int i = 0; i < vertices.Count; i++)
+            {
+                controlPoints[i] = new PathControlPoint(turn(vertices[i]), i == 0 ? PathType.LINEAR : null);
+
+                if (i > 0)
+                    length += (controlPoints[i].Position - controlPoints[i - 1].Position).Length;
+            }
+
+            slider.ReshapePath(new SliderPath(controlPoints, length));
         }
 
         /// <summary>

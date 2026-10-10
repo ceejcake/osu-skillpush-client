@@ -15,8 +15,10 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Cursor;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
+using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
 using osu.Framework.Logging;
+using osu.Game.Configuration;
 using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.UserInterface;
@@ -54,9 +56,13 @@ namespace osu.Game.Overlays.Settings.Sections
 
         private IDisposable realmSubscription;
 
+        private Bindable<string> favouriteSkins;
+
         [BackgroundDependencyLoader(permitNulls: true)]
-        private void load([CanBeNull] SkinEditorOverlay skinEditor)
+        private void load([CanBeNull] SkinEditorOverlay skinEditor, OsuConfigManager config)
         {
+            favouriteSkins = config.GetBindable<string>(OsuSetting.FavouriteSkins);
+
             Children = new Drawable[]
             {
                 new SettingsItemV2(skinDropdown = new SkinDropdown
@@ -96,6 +102,8 @@ namespace osu.Game.Overlays.Settings.Sections
                                                                          .Where(s => !s.DeletePending)
                                                                          .OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase), skinsChanged);
 
+            favouriteSkins.BindValueChanged(_ => Scheduler.AddOnce(repopulateSkins));
+
             skinDropdown.Current.BindValueChanged(skin =>
             {
                 if (skin.NewValue.ID == SkinInfo.RANDOM_SKIN)
@@ -116,11 +124,30 @@ namespace osu.Game.Overlays.Settings.Sections
             if (!sender.Any())
                 return;
             // For simplicity repopulate the full list.
-            dropdownItems.Clear();
-            dropdownItems.AddRange(skins.GetAllUsableSkins());
-
-            Schedule(() => skinDropdown.Items = dropdownItems);
+            Schedule(repopulateSkins);
         }
+
+        /// <summary>
+        /// Populates the skin list, with favourite skins at the top.
+        /// </summary>
+        private void repopulateSkins()
+        {
+            var favourites = ParseFavouriteSkins(favouriteSkins.Value);
+            var allSkins = skins.GetAllUsableSkins();
+
+            dropdownItems.Clear();
+            dropdownItems.AddRange(allSkins.Where(s => favourites.Contains(s.ID))
+                                           .OrderBy(s => s.ToString(), StringComparer.OrdinalIgnoreCase));
+            dropdownItems.AddRange(allSkins.Where(s => !favourites.Contains(s.ID)));
+
+            skinDropdown.Items = dropdownItems;
+        }
+
+        public static HashSet<Guid> ParseFavouriteSkins(string value) =>
+            value.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                 .Select(s => Guid.TryParse(s, out var id) ? id : Guid.Empty)
+                 .Where(id => id != Guid.Empty)
+                 .ToHashSet();
 
         protected override void Dispose(bool isDisposing)
         {
@@ -132,6 +159,124 @@ namespace osu.Game.Overlays.Settings.Sections
         private partial class SkinDropdown : FormDropdown<Live<SkinInfo>>
         {
             protected override LocalisableString GenerateItemText(Live<SkinInfo> item) => item.ToString();
+
+            protected override DropdownMenu CreateMenu() => new SkinDropdownMenu
+            {
+                MaxHeight = MaxHeight,
+            };
+
+            private partial class SkinDropdownMenu : FormDropdownMenu
+            {
+                protected override DrawableDropdownMenuItem CreateDrawableDropdownMenuItem(MenuItem item) => new DrawableSkinMenuItem(item)
+                {
+                    BackgroundColourHover = HoverColour,
+                    BackgroundColourSelected = SelectionColour
+                };
+            }
+
+            /// <summary>
+            /// A skin in the dropdown, with a heart button to mark it as a favourite.
+            /// </summary>
+            private partial class DrawableSkinMenuItem : OsuDropdownMenu.DrawableOsuDropdownMenuItem
+            {
+                private readonly Live<SkinInfo> skin;
+
+                private Bindable<string> favouriteSkins;
+
+                private IconButton heartButton;
+
+                private bool isFavourite;
+
+                [Resolved]
+                private OsuColour colours { get; set; }
+
+                public DrawableSkinMenuItem(MenuItem item)
+                    : base(item)
+                {
+                    skin = ((DropdownMenuItem<Live<SkinInfo>>)item).Value;
+                }
+
+                private bool canFavourite => skin.ID != SkinInfo.RANDOM_SKIN;
+
+                [BackgroundDependencyLoader]
+                private void load(OsuConfigManager config)
+                {
+                    favouriteSkins = config.GetBindable<string>(OsuSetting.FavouriteSkins);
+
+                    if (!canFavourite)
+                        return;
+
+                    if (Foreground.Children.FirstOrDefault() is Content content)
+                        content.Label.Padding = new MarginPadding { Left = 15, Right = 25 };
+
+                    AddInternal(heartButton = new NoFocusChangeIconButton
+                    {
+                        Anchor = Anchor.CentreRight,
+                        Origin = Anchor.CentreRight,
+                        X = -5,
+                        Scale = new Vector2(0.65f),
+                        Action = toggleFavourite,
+                    });
+                }
+
+                protected override void LoadComplete()
+                {
+                    base.LoadComplete();
+
+                    if (canFavourite)
+                        favouriteSkins.BindValueChanged(_ => updateFavouriteState(), true);
+                }
+
+                private void toggleFavourite()
+                {
+                    var favourites = ParseFavouriteSkins(favouriteSkins.Value);
+
+                    if (!favourites.Remove(skin.ID))
+                        favourites.Add(skin.ID);
+
+                    favouriteSkins.Value = string.Join(',', favourites);
+                }
+
+                private void updateFavouriteState()
+                {
+                    isFavourite = ParseFavouriteSkins(favouriteSkins.Value).Contains(skin.ID);
+
+                    heartButton.Icon = isFavourite ? FontAwesome.Solid.Heart : FontAwesome.Regular.Heart;
+                    heartButton.IconColour = isFavourite ? colours.Pink1 : Colour4.White;
+                    heartButton.TooltipText = isFavourite ? "Remove from favourites" : "Add to favourites";
+
+                    updateButtonVisibility();
+                }
+
+                protected override bool OnHover(HoverEvent e)
+                {
+                    updateButtonVisibility();
+                    return base.OnHover(e);
+                }
+
+                protected override void OnHoverLost(HoverLostEvent e)
+                {
+                    updateButtonVisibility();
+                    base.OnHoverLost(e);
+                }
+
+                protected override void OnSelectChange()
+                {
+                    base.OnSelectChange();
+                    updateButtonVisibility();
+                }
+
+                private void updateButtonVisibility()
+                {
+                    if (heartButton != null)
+                        heartButton.Alpha = isFavourite || IsHovered || IsPreSelected ? 1 : 0;
+                }
+
+                private partial class NoFocusChangeIconButton : IconButton
+                {
+                    public override bool ChangeFocusOnClick => false;
+                }
+            }
         }
 
         public partial class RenameSkinButton : SettingsButtonV2, IHasPopover

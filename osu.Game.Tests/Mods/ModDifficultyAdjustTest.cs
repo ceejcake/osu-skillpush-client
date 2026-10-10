@@ -23,6 +23,10 @@ namespace osu.Game.Tests.Mods
         public void Setup()
         {
             testMod = new TestModDifficultyAdjust();
+
+            // These tests cover what the values do once turned on, which is off by default.
+            testMod.AdjustDrainRate.Value = true;
+            testMod.AdjustOverallDifficulty.Value = true;
         }
 
         [Test]
@@ -167,7 +171,7 @@ namespace osu.Game.Tests.Mods
         private BeatmapDifficulty applyDifficulty(BeatmapDifficulty difficulty)
         {
             var newDifficulty = difficulty.Clone();
-            testMod.ApplyToDifficulty(newDifficulty);
+            testMod.ApplyToDifficulty(new[] { testMod }, newDifficulty);
             return newDifficulty;
         }
 

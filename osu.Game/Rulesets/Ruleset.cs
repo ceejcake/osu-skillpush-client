@@ -34,6 +34,7 @@ using osu.Game.Screens.Ranking.Statistics;
 using osu.Game.Skinning;
 using osu.Game.Users;
 using osuTK;
+using osu.Game.Utils;
 
 namespace osu.Game.Rulesets
 {
@@ -429,10 +430,16 @@ namespace osu.Game.Rulesets
         /// <returns>The adjusted difficulty attributes.</returns>
         public virtual BeatmapDifficulty GetAdjustedDisplayDifficulty(IBeatmapInfo beatmapInfo, IReadOnlyCollection<Mod> mods)
         {
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            mods = ModUtils.WithBpmLockApplied(mods, beatmapInfo.BPM);
+
             BeatmapDifficulty adjustedDifficulty = new BeatmapDifficulty(beatmapInfo.Difficulty);
 
             foreach (var mod in mods.OfType<IApplicableToDifficulty>())
                 mod.ApplyToDifficulty(adjustedDifficulty);
+
+            foreach (var mod in mods.OfType<IApplicableToDifficultyWithMods>())
+                mod.ApplyToDifficulty(mods, adjustedDifficulty);
 
             return adjustedDifficulty;
         }
@@ -444,6 +451,9 @@ namespace osu.Game.Rulesets
         /// </summary>
         public virtual IEnumerable<RulesetBeatmapAttribute> GetBeatmapAttributesForDisplay(IBeatmapInfo beatmapInfo, IReadOnlyCollection<Mod> mods)
         {
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            mods = ModUtils.WithBpmLockApplied(mods, beatmapInfo.BPM);
+
             var originalDifficulty = beatmapInfo.Difficulty;
             var adjustedDifficulty = GetAdjustedDisplayDifficulty(beatmapInfo, mods);
 

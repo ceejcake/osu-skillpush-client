@@ -11,9 +11,11 @@ using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Localisation;
 using osu.Framework.Platform;
 using osu.Game.Beatmaps.Drawables.Cards;
+using osu.Game.Beatmaps.StreamPractice;
 using osu.Game.Input;
 using osu.Game.Input.Bindings;
 using osu.Game.Localisation;
+using osu.Game.Online.API;
 using osu.Game.Online.Leaderboards;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Dashboard.Friends;
@@ -25,6 +27,7 @@ using osu.Game.Screens.Select;
 using osu.Game.Screens.Select.Filter;
 using osu.Game.Skinning;
 using osu.Game.Users;
+using osu.Game.Audio;
 
 namespace osu.Game.Configuration
 {
@@ -40,6 +43,10 @@ namespace osu.Game.Configuration
             // UI/selection defaults
             SetDefault(OsuSetting.Ruleset, string.Empty);
             SetDefault(OsuSetting.Skin, SkinInfo.ARGON_SKIN.ToString());
+            SetDefault(OsuSetting.FavouriteSkins, string.Empty);
+
+            SetDefault(OsuSetting.HitErrorBarSizeOverride, false);
+            SetDefault(OsuSetting.HitErrorBarSize, 1f, 0.25f, 3f, 0.05f);
 
             SetDefault(OsuSetting.BeatmapDetailTab, BeatmapDetailTab.Local);
             SetDefault(OsuSetting.BeatmapLeaderboardSortMode, LeaderboardSortMode.Score);
@@ -67,6 +74,11 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.ToolbarClockDisplayMode, ToolbarClockDisplayMode.Full);
 
             SetDefault(OsuSetting.SongSelectBackgroundBlur, false);
+
+            // Offline (guest) identity
+            SetDefault(OsuSetting.GuestUsername, GuestUser.DEFAULT_USERNAME);
+            SetDefault(OsuSetting.GuestAvatarFile, string.Empty);
+            SetDefault(OsuSetting.GuestPerformanceIncludesUnranked, false);
 
             // Online settings
             SetDefault(OsuSetting.Username, string.Empty);
@@ -148,6 +160,13 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.LightenDuringBreaks, true);
 
             SetDefault(OsuSetting.HitLighting, true);
+            SetDefault(OsuSetting.HitErrorJudgements, false);
+            SetDefault(OsuSetting.ModdedStarRatingSorting, false);
+            SetDefault(OsuSetting.StreamPracticeBeatmapSetID, string.Empty);
+            SetDefault(OsuSetting.StreamPracticePattern, StreamPracticePattern.Continuous);
+            SetDefault(OsuSetting.StreamPracticeBurstLength, 16);
+            SetDefault(OsuSetting.SkinCursorSizes, string.Empty);
+            SetDefault(OsuSetting.MusicPitch, 1.0, MusicPitchShift.MINIMUM_PITCH, MusicPitchShift.MAXIMUM_PITCH, 0.05);
             SetDefault(OsuSetting.StarFountains, true);
 
             SetDefault(OsuSetting.HUDVisibilityMode, HUDVisibilityMode.Always);
@@ -420,6 +439,17 @@ namespace osu.Game.Configuration
         NotifyOnFriendPresenceChange,
         UIHoldActivationDelay,
         HitLighting,
+        HitErrorJudgements,
+        ModdedStarRatingSorting,
+        StreamPracticeBeatmapSetID,
+        StreamPracticePattern,
+        StreamPracticeBurstLength,
+
+        /// <summary>
+        /// The gameplay cursor size last used with each skin, as JSON.
+        /// </summary>
+        SkinCursorSizes,
+        MusicPitch,
         StarFountains,
         MenuBackgroundSource,
         GameplayDisableWinKey,
@@ -478,5 +508,24 @@ namespace osu.Game.Configuration
 
         DashboardSortMode,
         DashboardDisplayStyle,
+
+        GuestUsername,
+        GuestAvatarFile,
+        GuestPerformanceIncludesUnranked,
+
+        /// <summary>
+        /// Comma-separated IDs of skins marked as favourite, which are shown at the top of the skin list.
+        /// </summary>
+        FavouriteSkins,
+
+        /// <summary>
+        /// Whether <see cref="HitErrorBarSize"/> should be used for all bar hit error meters, ignoring skin layout scale.
+        /// </summary>
+        HitErrorBarSizeOverride,
+
+        /// <summary>
+        /// The size of bar hit error meters when <see cref="HitErrorBarSizeOverride"/> is enabled.
+        /// </summary>
+        HitErrorBarSize,
     }
 }

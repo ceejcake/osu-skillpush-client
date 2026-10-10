@@ -24,7 +24,7 @@ namespace osu.Game.Rulesets.Catch.Tests
             #region Difficulty Reduction
 
             [new Mod[] { new CatchModEasy() }, 0.5],
-            [new Mod[] { new CatchModNoFail() }, 0.5],
+            [new Mod[] { new CatchModNoFail() }, 1.0],
 
             [new Mod[] { new CatchModHalfTime { SpeedChange = { Value = 0.50 } } }, 0.1],
             [new Mod[] { new CatchModHalfTime { SpeedChange = { Value = 0.55 } } }, 0.1],
@@ -113,7 +113,7 @@ namespace osu.Game.Rulesets.Catch.Tests
 
             #region Conversion
 
-            [new Mod[] { new CatchModDifficultyAdjust() }, 0.5],
+            [new Mod[] { new CatchModDifficultyAdjust() }, 1.0],
             [new Mod[] { new CatchModClassic() }, 1],
             [new Mod[] { new CatchModMirror() }, 1],
 

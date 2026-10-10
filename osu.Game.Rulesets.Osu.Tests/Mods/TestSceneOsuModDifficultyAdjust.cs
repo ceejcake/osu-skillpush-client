@@ -45,7 +45,7 @@ namespace osu.Game.Rulesets.Osu.Tests.Mods
         [Test]
         public void TestCircleSize1() => CreateModTest(new ModTestData
         {
-            Mod = new OsuModDifficultyAdjust { CircleSize = { Value = 1 } },
+            Mod = new OsuModDifficultyAdjust { AdjustCircleSize = { Value = true }, CircleSize = { Value = 1 } },
             Autoplay = true,
             PassCondition = () => checkSomeHit() && checkObjectsScale(0.78f)
         });
@@ -53,7 +53,7 @@ namespace osu.Game.Rulesets.Osu.Tests.Mods
         [Test]
         public void TestCircleSize10() => CreateModTest(new ModTestData
         {
-            Mod = new OsuModDifficultyAdjust { CircleSize = { Value = 10 } },
+            Mod = new OsuModDifficultyAdjust { AdjustCircleSize = { Value = true }, CircleSize = { Value = 10 } },
             Autoplay = true,
             PassCondition = () => checkSomeHit() && checkObjectsScale(0.15f)
         });
@@ -123,7 +123,7 @@ namespace osu.Game.Rulesets.Osu.Tests.Mods
                 }
             },
             Autoplay = true,
-            PassCondition = () => Player.ScoreProcessor.TotalScore.Value == 850_000,
+            PassCondition = () => Player.ScoreProcessor.TotalScore.Value == 1_000_000,
         });
 
         [Test]
@@ -153,7 +153,7 @@ namespace osu.Game.Rulesets.Osu.Tests.Mods
                 }
             },
             Autoplay = true,
-            PassCondition = () => Player.ScoreProcessor.TotalScore.Value == 630_000,
+            PassCondition = () => Player.ScoreProcessor.TotalScore.Value == 1_000_000,
         });
 
         private bool checkObjectsPreempt(double target)

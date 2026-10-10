@@ -139,6 +139,12 @@ namespace osu.Game.Rulesets.Osu.Objects
 
         public bool GenerateTicks { get; set; } = true;
 
+        /// <summary>
+        /// A multiplier applied to <see cref="Velocity"/> on top of everything else, for paths which have been reshaped in a way
+        /// that changes their length while the slider should still take the same time (see <see cref="ReshapePath"/>).
+        /// </summary>
+        public double VelocityScale { get; set; } = 1;
+
         [JsonIgnore]
         public SliderHeadCircle HeadCircle { get; protected set; }
 
@@ -162,6 +168,7 @@ namespace osu.Game.Rulesets.Osu.Objects
             TimingControlPoint timingPoint = controlPointInfo.TimingPointAt(StartTime);
 
             Velocity = BASE_SCORING_DISTANCE * difficulty.SliderMultiplier / LegacyRulesetExtensions.GetPrecisionAdjustedBeatLength(this, timingPoint, OsuRuleset.SHORT_NAME);
+            Velocity *= VelocityScale;
             // WARNING: this is intentionally not computed as `BASE_SCORING_DISTANCE * difficulty.SliderMultiplier`
             // for backwards compatibility reasons (intentionally introducing floating point errors to match stable).
             double scoringDistance = Velocity * timingPoint.BeatLength;
@@ -226,6 +233,26 @@ namespace osu.Game.Rulesets.Osu.Objects
             }
 
             UpdateNestedSamples();
+        }
+
+        /// <summary>
+        /// Replaces the path with one of a different length, without changing how long the slider lasts or when its ticks and
+        /// repeats land. The slider moves faster or slower along the new path to make up the difference.
+        /// </summary>
+        public void ReshapePath(SliderPath newPath)
+        {
+            double oldDistance = Path.Distance;
+
+            Path = newPath;
+
+            if (oldDistance <= 0 || Path.Distance <= 0)
+                return;
+
+            double ratio = Path.Distance / oldDistance;
+
+            VelocityScale *= ratio;
+            Velocity *= ratio;
+            TickDistance *= ratio;
         }
 
         private void updateNestedPositions()

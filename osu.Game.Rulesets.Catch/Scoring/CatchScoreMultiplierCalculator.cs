@@ -16,7 +16,7 @@ namespace osu.Game.Rulesets.Catch.Scoring
             #region Difficulty Reduction
 
             Single<CatchModEasy>(hasMultiplier: 0.5);
-            Single<CatchModNoFail>(hasMultiplier: 0.5);
+            // No Fail (1.0x)
             Single<CatchModHalfTime>(hasMultiplier: halfTime => rateAdjustMultiplier(halfTime.SpeedChange.Value));
             Single<CatchModDaycore>(hasMultiplier: daycore => rateAdjustMultiplier(daycore.SpeedChange.Value));
 
@@ -37,7 +37,7 @@ namespace osu.Game.Rulesets.Catch.Scoring
 
             #region Conversion
 
-            Single<CatchModDifficultyAdjust>(hasMultiplier: 0.5);
+            // Difficulty Adjust (1.0x)
             Single<CatchModClassic>(hasMultiplier: _ => classicMultiplier(context.Score));
             // Mirror
 

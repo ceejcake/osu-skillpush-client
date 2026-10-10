@@ -26,6 +26,7 @@ namespace osu.Game.Overlays.Settings.Sections
         private void load(UpdateManager? updateManager)
         {
             Add(new QuickActionSettings());
+            Add(new GuestPlayerSettings());
             Add(new LanguageSettings());
             if (updateManager?.CanCheckForUpdate == true)
                 Add(new UpdateSettings());

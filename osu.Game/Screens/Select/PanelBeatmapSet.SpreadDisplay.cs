@@ -51,6 +51,9 @@ namespace osu.Game.Screens.Select
             [Resolved]
             private RulesetStore rulesets { get; set; } = null!;
 
+            [Resolved]
+            private ModdedStarRatingCache? starRatingCache { get; set; }
+
             private FillFlowContainer flow = null!;
             private SpriteIcon icon = null!;
 
@@ -111,6 +114,21 @@ namespace osu.Game.Screens.Select
                 scopedBeatmapSet.BindDisabledChanged(_ => updateEnabled(), true);
                 Enabled.BindValueChanged(_ => updateAppearance(), true);
                 FinishTransforms(true);
+
+                if (starRatingCache != null)
+                    starRatingCache.RatingsChanged += onRatingsChanged;
+            }
+
+            private void onRatingsChanged() => Scheduler.AddOnce(updateBeatmapSet);
+
+            private double getStarRating(BeatmapInfo beatmap) => starRatingCache?.Current.GetStarRating(beatmap) ?? beatmap.StarRating;
+
+            protected override void Dispose(bool isDisposing)
+            {
+                if (starRatingCache != null)
+                    starRatingCache.RatingsChanged -= onRatingsChanged;
+
+                base.Dispose(isDisposing);
             }
 
             private void updateBeatmapSet()
@@ -153,7 +171,7 @@ namespace osu.Game.Screens.Select
                     int overflowHidden = 0;
                     bool? lastBeatmapVisible = null;
 
-                    foreach (var beatmap in rulesetGrouping.OrderBy(beatmap => beatmap.StarRating))
+                    foreach (var beatmap in rulesetGrouping.OrderBy(getStarRating))
                     {
                         bool visible = VisibleBeatmaps.Value?.Contains(beatmap) != false;
 
@@ -165,7 +183,7 @@ namespace osu.Game.Screens.Select
                                 Alpha = visible ? 1 : 0.5f,
                                 Anchor = Anchor.CentreLeft,
                                 Origin = Anchor.CentreLeft,
-                                Colour = colours.ForStarDifficulty(beatmap.StarRating),
+                                Colour = colours.ForStarDifficulty(getStarRating(beatmap)),
                                 Margin = new MarginPadding { Left = lastBeatmapVisible != null && lastBeatmapVisible != visible ? 1 : 0 }
                             };
                             flow.Add(circle);

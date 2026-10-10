@@ -54,6 +54,26 @@ namespace osu.Game.Localisation
         /// </summary>
         public static LocalisableString SpeedChangedTo(double speed) => new TranslatableString(getKey(@"speed_changed"), @"Speed changed to {0:N2}x", speed);
 
+        /// <summary>
+        /// "Spacing changed to {0:N2}x"
+        /// </summary>
+        public static LocalisableString SpacingChangedTo(double spacing) => new TranslatableString(getKey(@"spacing_changed"), @"Spacing changed to {0:N2}x", spacing);
+
+        /// <summary>
+        /// "Practice checkpoint"
+        /// </summary>
+        public static LocalisableString PracticeCheckpoint => new TranslatableString(getKey(@"practice_checkpoint"), @"Practice checkpoint");
+
+        /// <summary>
+        /// "Restarts begin at {0}"
+        /// </summary>
+        public static LocalisableString RestartFromTime(string time) => new TranslatableString(getKey(@"restart_from_time"), @"Restarts begin at {0}", time);
+
+        /// <summary>
+        /// "Restarts begin from the start"
+        /// </summary>
+        public static LocalisableString RestartFromBeginning => new TranslatableString(getKey(@"restart_from_beginning"), @"Restarts begin from the start");
+
         private static string getKey(string key) => $@"{prefix}:{key}";
     }
 }

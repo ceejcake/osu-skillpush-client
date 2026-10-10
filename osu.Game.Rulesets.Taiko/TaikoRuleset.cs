@@ -309,6 +309,9 @@ namespace osu.Game.Rulesets.Taiko
         /// <seealso cref="TaikoHitWindows"/>
         public override BeatmapDifficulty GetAdjustedDisplayDifficulty(IBeatmapInfo beatmapInfo, IReadOnlyCollection<Mod> mods)
         {
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            mods = ModUtils.WithBpmLockApplied(mods, beatmapInfo.BPM);
+
             BeatmapDifficulty adjustedDifficulty = base.GetAdjustedDisplayDifficulty(beatmapInfo, mods);
             double rate = ModUtils.CalculateRateWithMods(mods);
 
@@ -321,6 +324,9 @@ namespace osu.Game.Rulesets.Taiko
 
         public override IEnumerable<RulesetBeatmapAttribute> GetBeatmapAttributesForDisplay(IBeatmapInfo beatmapInfo, IReadOnlyCollection<Mod> mods)
         {
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            mods = ModUtils.WithBpmLockApplied(mods, beatmapInfo.BPM);
+
             var originalDifficulty = beatmapInfo.Difficulty;
             // `modAdjustedDifficulty` contains only the direct effect of mods.
             // `effectiveDifficulty` contains the "perceived" effect of rate-adjusting mods on OD and AR.

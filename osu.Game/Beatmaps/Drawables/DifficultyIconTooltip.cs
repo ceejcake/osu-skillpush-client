@@ -116,7 +116,7 @@ namespace osu.Game.Beatmaps.Drawables
 
             double rate = 1;
             if (displayedContent.Mods != null)
-                rate = ModUtils.CalculateRateWithMods(displayedContent.Mods);
+                rate = ModUtils.CalculateRateWithMods(ModUtils.WithBpmLockApplied(displayedContent.Mods, displayedContent.BeatmapInfo.BPM));
 
             double bpmAdjusted = displayedContent.BeatmapInfo.BPM * rate;
 

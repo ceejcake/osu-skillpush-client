@@ -44,11 +44,11 @@ namespace osu.Game.Rulesets.Osu.Mods
         {
             typeof(IRequiresApproachCircles),
             typeof(OsuModRandom),
+            typeof(OsuModCrossScreen),
             typeof(OsuModSpunOut),
             typeof(OsuModStrictTracking),
             typeof(OsuModSuddenDeath),
             typeof(OsuModDepth),
-            typeof(OsuModDifficultyAdjust),
         }).ToArray();
 
         [SettingSource("Seed", "Use a custom seed instead of a random one", SettingControlType = typeof(SettingsNumberBox))]

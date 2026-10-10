@@ -285,6 +285,12 @@ namespace osu.Game.Screens.Play
                 return Task.CompletedTask;
             }
 
+            if (GameplayInvalidatedBySeeking)
+            {
+                Logger.Log("Score submission cancelled due to seeking during gameplay.");
+                return Task.CompletedTask;
+            }
+
             // token may be null if the request failed but gameplay was still allowed (see HandleTokenRetrievalFailure).
             if (token == null)
             {

@@ -235,6 +235,8 @@ namespace osu.Game
 
         private Bindable<string> configSkin;
 
+        private SkinCursorSizeMemory skinCursorSizeMemory;
+
         private RealmDetachedBeatmapStore detachedBeatmapStore;
 
         private ScreenStackFooter screenStackFooter;
@@ -448,6 +450,9 @@ namespace osu.Game
 
             // Transfer any runtime changes back to configuration file.
             SkinManager.CurrentSkinInfo.ValueChanged += skin => configSkin.Value = skin.NewValue.ID.ToString();
+
+            // Each skin keeps its own gameplay cursor size.
+            skinCursorSizeMemory = new SkinCursorSizeMemory(configSkin, LocalConfig.GetBindable<float>(OsuSetting.GameplayCursorSize), LocalConfig.GetBindable<string>(OsuSetting.SkinCursorSizes));
 
             UserPlayingState.BindValueChanged(p =>
             {
@@ -1252,6 +1257,10 @@ namespace osu.Game
             loadComponentSingleFile(new MedalOverlay(), topMostOverlayContent.Add);
 
             loadComponentSingleFile(new BackgroundDataStoreProcessor(), Add);
+
+            // Loaded here rather than with the other beatmap components, as it shows its progress through the notification
+            // overlay, which only becomes available above.
+            loadComponentSingleFile(new ModdedStarRatingCache(), Add, true);
             loadComponentSingleFile<BeatmapStore>(detachedBeatmapStore = new RealmDetachedBeatmapStore(), Add, true);
             loadComponentSingleFile(new QueueController(), Add, true);
 

@@ -69,6 +69,13 @@ namespace osu.Game.Screens.Select
         [Resolved]
         private RealmAccess realm { get; set; } = null!;
 
+        [Resolved]
+        private ModdedStarRatingCache? starRatingCache { get; set; }
+
+        private ModdedStarRatingCache.Tracking? starRatingTracking;
+
+        private readonly Bindable<bool> moddedStarRatingSorting = new Bindable<bool>();
+
         private IBindable<APIUser> localUser = null!;
         private readonly IBindableList<int> localUserFavouriteBeatmapSets = new BindableList<int>();
 
@@ -274,6 +281,15 @@ namespace osu.Game.Screens.Select
             localUserFavouriteBeatmapSets.BindCollectionChanged((_, _) => updateCriteria());
             ScopedBeatmapSet.BindValueChanged(_ => updateCriteria(clearScopedSet: false));
 
+            if (starRatingCache != null)
+            {
+                starRatingTracking = starRatingCache.BeginTracking();
+                starRatingCache.RatingsChanged += onStarRatingsChanged;
+            }
+
+            config.BindWith(OsuSetting.ModdedStarRatingSorting, moddedStarRatingSorting);
+            moddedStarRatingSorting.BindValueChanged(_ => updateCriteria(clearScopedSet: false));
+
             updateCriteria();
         }
 
@@ -281,6 +297,26 @@ namespace osu.Game.Screens.Select
         {
             base.Dispose(isDisposing);
             collectionsSubscription?.Dispose();
+
+            if (starRatingCache != null)
+                starRatingCache.RatingsChanged -= onStarRatingsChanged;
+
+            starRatingTracking?.Dispose();
+        }
+
+        /// <summary>
+        /// Whether to filter and sort by star ratings under the current mods, which is turned on from the mod select overlay.
+        /// </summary>
+        private bool useModdedStarRatings(IEnumerable<string>? collectionBeatmapMD5Hashes) => moddedStarRatingSorting.Value && collectionBeatmapMD5Hashes != null;
+
+        /// <summary>
+        /// Star ratings under the current mods arrive gradually, and each batch can change which beatmaps are shown and in
+        /// what order.
+        /// </summary>
+        private void onStarRatingsChanged()
+        {
+            if (currentCriteria?.StarRatings != null && currentCriteria.DependsOnStarRating)
+                updateCriteria(clearScopedSet: false);
         }
 
         /// <summary>
@@ -304,6 +340,10 @@ namespace osu.Game.Screens.Select
                 AllowConvertedBeatmaps = showConvertedBeatmapsButton.Active.Value,
                 Ruleset = ruleset.Value,
                 Mods = mods.Value,
+                // Star ratings under the current mods are only worked out for a collection, as doing so for the whole
+                // library takes too long. Outside of one, they are left out altogether rather than mixing in the few
+                // beatmaps which happen to be known already.
+                StarRatings = useModdedStarRatings(collectionBeatmapMD5Hashes) ? starRatingCache?.Current : null,
                 CollectionBeatmapMD5Hashes = collectionBeatmapMD5Hashes,
                 LocalUserId = isValidUser ? localUser.Value.Id : null,
                 LocalUserUsername = isValidUser ? localUser.Value.Username : null,
@@ -335,6 +375,9 @@ namespace osu.Game.Screens.Select
             }
 
             currentCriteria = CreateCriteria();
+
+            starRatingTracking?.SetBeatmaps(useModdedStarRatings(currentCriteria.CollectionBeatmapMD5Hashes) ? currentCriteria.CollectionBeatmapMD5Hashes : null);
+
             CriteriaChanged?.Invoke(currentCriteria);
         }
 

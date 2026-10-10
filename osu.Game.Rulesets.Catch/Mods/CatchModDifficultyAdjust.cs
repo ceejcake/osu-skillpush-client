@@ -14,7 +14,10 @@ namespace osu.Game.Rulesets.Catch.Mods
 {
     public class CatchModDifficultyAdjust : ModDifficultyAdjust, IApplicableToBeatmapProcessor
     {
-        [SettingSource("Circle Size", "Override a beatmap's set CS.", FIRST_SETTING_ORDER - 1, SettingControlType = typeof(DifficultyAdjustSettingsControl))]
+        [SettingSource("Adjust circle size", "Take over this beatmap's CS, ignoring what other mods would do to it.", FIRST_SETTING_ORDER - 3)]
+        public BindableBool AdjustCircleSize { get; } = new BindableBool();
+
+        [SettingSource("Circle Size", "Override a beatmap's set CS.", FIRST_SETTING_ORDER - 2, SettingControlType = typeof(DifficultyAdjustSettingsControl))]
         public DifficultyBindable CircleSize { get; } = new DifficultyBindable
         {
             Precision = 0.1f,
@@ -24,7 +27,10 @@ namespace osu.Game.Rulesets.Catch.Mods
             ReadCurrentFromDifficulty = diff => diff.CircleSize,
         };
 
-        [SettingSource("Approach Rate", "Override a beatmap's set AR.", LAST_SETTING_ORDER + 1, SettingControlType = typeof(DifficultyAdjustSettingsControl))]
+        [SettingSource("Adjust approach rate", "Take over this beatmap's AR, ignoring what other mods would do to it.", LAST_SETTING_ORDER + 1)]
+        public BindableBool AdjustApproachRate { get; } = new BindableBool();
+
+        [SettingSource("Approach Rate", "Override a beatmap's set AR.", LAST_SETTING_ORDER + 2, SettingControlType = typeof(DifficultyAdjustSettingsControl))]
         public DifficultyBindable ApproachRate { get; } = new DifficultyBindable
         {
             Precision = 0.1f,
@@ -78,8 +84,8 @@ namespace osu.Game.Rulesets.Catch.Mods
         {
             base.ApplySettings(difficulty);
 
-            if (CircleSize.Value != null) difficulty.CircleSize = CircleSize.Value.Value;
-            if (ApproachRate.Value != null) difficulty.ApproachRate = ApproachRate.Value.Value;
+            if (AdjustCircleSize.Value && CircleSize.Value != null) difficulty.CircleSize = CircleSize.Value.Value;
+            if (AdjustApproachRate.Value && ApproachRate.Value != null) difficulty.ApproachRate = ApproachRate.Value.Value;
         }
 
         public void ApplyToBeatmapProcessor(IBeatmapProcessor beatmapProcessor)

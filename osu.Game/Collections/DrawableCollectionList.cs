@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -31,6 +31,9 @@ namespace osu.Game.Collections
         [Resolved]
         private RealmAccess realm { get; set; } = null!;
 
+        [Resolved]
+        private CollectionFolderManager? collectionFolders { get; set; }
+
         private Scroll scroll = null!;
 
         private IDisposable? realmSubscription;
@@ -55,6 +58,9 @@ namespace osu.Game.Collections
             base.LoadComplete();
 
             realmSubscription = realm.RegisterForNotifications(r => r.All<BeatmapCollection>().OrderBy(c => c.Name), collectionsChanged);
+
+            if (collectionFolders != null)
+                collectionFolders.FoldersChanged += onFoldersChanged;
         }
 
         /// <summary>
@@ -79,30 +85,83 @@ namespace osu.Game.Collections
             }
         }
 
+        private IRealmCollection<BeatmapCollection>? currentCollections;
+
         private void collectionsChanged(IRealmCollection<BeatmapCollection> collections, ChangeSet? changes)
         {
-            if (changes == null)
+            currentCollections = collections;
+
+            if (changes?.InsertedIndices.Length == 1)
+                lastCreated = collections[changes.InsertedIndices[0]].ID;
+
+            var modified = changes?.NewModifiedIndices.Select(i => collections[i].ID).ToHashSet();
+
+            updateItems(modified);
+        }
+
+        private void onFoldersChanged() => Scheduler.AddOnce(reorderItems);
+
+        /// <summary>
+        /// Reorders the existing items to match folder grouping, without recreating them
+        /// (so that any open folder popover stays open).
+        /// </summary>
+        private void reorderItems()
+        {
+            var ordered = getOrderedCollections();
+
+            if (ordered == null)
+                return;
+
+            if (!ordered.Select(c => c.ID).OrderBy(id => id).SequenceEqual(Items.Select(i => i.ID).OrderBy(id => id)))
             {
-                Items.AddRange(collections.AsEnumerable().Select(c => c.ToLive(realm)));
+                updateItems(null);
                 return;
             }
 
-            foreach (int i in changes.DeletedIndices.OrderDescending())
-                Items.RemoveAt(i);
-
-            foreach (int i in changes.InsertedIndices)
-                Items.Insert(i, collections[i].ToLive(realm));
-
-            if (changes.InsertedIndices.Length == 1)
-                lastCreated = collections[changes.InsertedIndices[0]].ID;
-
-            foreach (int i in changes.NewModifiedIndices)
+            for (int i = 0; i < ordered.Count; i++)
             {
-                var updatedItem = collections[i];
+                int current = Items.ToList().FindIndex(item => item.ID == ordered[i].ID);
 
-                Items.RemoveAt(i);
-                Items.Insert(i, updatedItem.ToLive(realm));
+                if (current != i)
+                    Items.Move(current, i);
             }
+        }
+
+        private List<BeatmapCollection>? getOrderedCollections() =>
+            currentCollections?.AsEnumerable()
+                              .Select(c => (collection: c, folder: collectionFolders?.GetFolders(c.ID).FirstOrDefault()))
+                              .OrderBy(c => c.folder == null)
+                              .ThenBy(c => c.folder, StringComparer.OrdinalIgnoreCase)
+                              .Select(c => c.collection)
+                              .ToList();
+
+        /// <summary>
+        /// Updates the displayed items, grouping collections by folder (folders first, then unsorted collections).
+        /// </summary>
+        /// <param name="modified">If non-null, only these collections need refreshing unless the ordering has changed.</param>
+        private void updateItems(HashSet<Guid>? modified)
+        {
+            var ordered = getOrderedCollections();
+
+            if (ordered == null)
+                return;
+
+            if (modified != null && ordered.Select(c => c.ID).SequenceEqual(Items.Select(i => i.ID)))
+            {
+                for (int i = 0; i < ordered.Count; i++)
+                {
+                    if (!modified.Contains(ordered[i].ID))
+                        continue;
+
+                    Items.RemoveAt(i);
+                    Items.Insert(i, ordered[i].ToLive(realm));
+                }
+
+                return;
+            }
+
+            Items.Clear();
+            Items.AddRange(ordered.Select(c => c.ToLive(realm)));
         }
 
         protected override OsuRearrangeableListItem<Live<BeatmapCollection>> CreateOsuDrawable(Live<BeatmapCollection> item) =>
@@ -112,6 +171,9 @@ namespace osu.Game.Collections
         {
             base.Dispose(isDisposing);
             realmSubscription?.Dispose();
+
+            if (collectionFolders != null)
+                collectionFolders.FoldersChanged -= onFoldersChanged;
         }
 
         /// <summary>

@@ -4,6 +4,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
+using osu.Framework.Graphics;
+using osuTK;
+using osu.Framework.Graphics.Containers;
 using osu.Framework.Input.Events;
 using osu.Game.Input.Bindings;
 using osu.Game.Rulesets.Mods;
@@ -15,6 +18,7 @@ namespace osu.Game.Overlays.Mods
     public partial class UserModSelectOverlay : ModSelectOverlay
     {
         private ModSpeedHotkeyHandler modSpeedHotkeyHandler = null!;
+        private ModSpacingHotkeyHandler modSpacingHotkeyHandler = null!;
 
         public UserModSelectOverlay(OverlayColourScheme colourScheme = OverlayColourScheme.Green)
             : base(colourScheme)
@@ -25,7 +29,20 @@ namespace osu.Game.Overlays.Mods
         private void load()
         {
             Add(modSpeedHotkeyHandler = new ModSpeedHotkeyHandler());
+            Add(modSpacingHotkeyHandler = new ModSpacingHotkeyHandler());
         }
+
+        protected override Drawable CreateSearchBarAccessory() => new FillFlowContainer
+        {
+            AutoSizeAxes = Axes.Both,
+            Direction = FillDirection.Horizontal,
+            Spacing = new Vector2(10, 0),
+            Children = new Drawable[]
+            {
+                new ModdedStarRatingSortingToggle(),
+                new MusicPitchButton(),
+            }
+        };
 
         protected override ModColumn CreateModColumn(ModType modType) => new UserModColumn(modType, false);
 
@@ -59,6 +76,12 @@ namespace osu.Game.Overlays.Mods
 
                 case GlobalAction.DecreaseModSpeed:
                     return modSpeedHotkeyHandler.ChangeSpeed(-0.05, AllAvailableMods.Where(state => state.ValidForSelection.Value).Select(state => state.Mod));
+
+                case GlobalAction.IncreaseModSpacing:
+                    return modSpacingHotkeyHandler.ChangeSpacing(0.05, AllAvailableMods.Where(state => state.ValidForSelection.Value).Select(state => state.Mod));
+
+                case GlobalAction.DecreaseModSpacing:
+                    return modSpacingHotkeyHandler.ChangeSpacing(-0.05, AllAvailableMods.Where(state => state.ValidForSelection.Value).Select(state => state.Mod));
             }
 
             return base.OnPressed(e);

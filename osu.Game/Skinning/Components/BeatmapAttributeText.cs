@@ -184,6 +184,11 @@ namespace osu.Game.Skinning.Components
             }
         }
 
+        /// <summary>
+        /// The rate of play, with any bpm lock settled on the current beatmap, as it gives each beatmap a rate of its own.
+        /// </summary>
+        private double lockedRate() => ModUtils.CalculateRateWithMods(ModUtils.WithBpmLockApplied(mods.Value, beatmap.Value.BeatmapInfo.BPM));
+
         private LocalisableString getValueString(BeatmapAttribute attribute)
         {
             switch (attribute)
@@ -204,13 +209,13 @@ namespace osu.Game.Skinning.Components
                     return beatmap.Value.BeatmapInfo.Metadata.Source;
 
                 case BeatmapAttribute.Length:
-                    return Math.Round(beatmap.Value.BeatmapInfo.Length / ModUtils.CalculateRateWithMods(mods.Value)).ToFormattedDuration();
+                    return Math.Round(beatmap.Value.BeatmapInfo.Length / lockedRate()).ToFormattedDuration();
 
                 case BeatmapAttribute.RankedStatus:
                     return beatmap.Value.BeatmapInfo.Status.GetLocalisableDescription();
 
                 case BeatmapAttribute.BPM:
-                    return FormatUtils.RoundBPM(beatmap.Value.BeatmapInfo.BPM, ModUtils.CalculateRateWithMods(mods.Value)).ToLocalisableString(@"0.##");
+                    return FormatUtils.RoundBPM(beatmap.Value.BeatmapInfo.BPM, lockedRate()).ToLocalisableString(@"0.##");
 
                 case BeatmapAttribute.CircleSize:
                     return computeDifficulty().CircleSize.ToLocalisableString(@"0.##");

@@ -29,9 +29,15 @@ namespace osu.Game.Tests.Visual.UserInterface
         [SetUpSteps]
         public void SetUpSteps()
         {
+            createControl();
+        }
+
+        private void createControl(bool extendedLimits = true)
+        {
             AddStep("create control", () =>
             {
                 modDifficultyAdjust = new OsuModDifficultyAdjust();
+                modDifficultyAdjust.ExtendedLimits.Value = extendedLimits;
 
                 Child = new Container
                 {
@@ -71,21 +77,28 @@ namespace osu.Game.Tests.Visual.UserInterface
         }
 
         [Test]
+        public void TestExtendedLimitsEnabledByDefault()
+        {
+            AddAssert("extended limits on", () => modDifficultyAdjust.ExtendedLimits.Value);
+
+            setSliderValue("Circle Size", 99);
+
+            checkSliderAtValue("Circle Size", 11);
+            checkBindableAtValue("Circle Size", 11);
+        }
+
+        [Test]
         public void TestValueAboveRangeStillApplied()
         {
+            // The value is assigned while extended limits are off, as it would be when deserialising a saved mod.
+            createControl(extendedLimits: false);
+
             AddStep("set override cs to 11", () => modDifficultyAdjust.CircleSize.Value = 11);
 
             checkSliderAtValue("Circle Size", 11);
             checkBindableAtValue("Circle Size", 11);
 
-            // this is a no-op, just showing that it won't reset the value during deserialisation.
-            setExtendedLimits(false);
-
-            checkSliderAtValue("Circle Size", 11);
-            checkBindableAtValue("Circle Size", 11);
-
-            // setting extended limits will reset the serialisation exception.
-            // this should be fine as the goal is to allow, at most, the value of extended limits.
+            // turning extended limits on afterwards keeps the value, as it is within the extended range.
             setExtendedLimits(true);
 
             checkSliderAtValue("Circle Size", 11);
@@ -100,14 +113,7 @@ namespace osu.Game.Tests.Visual.UserInterface
             checkSliderAtValue("Approach Rate", -5);
             checkBindableAtValue("Approach Rate", -5);
 
-            // this is a no-op, just showing that it won't reset the value during deserialisation.
-            setExtendedLimits(false);
-
-            checkSliderAtValue("Approach Rate", -5);
-            checkBindableAtValue("Approach Rate", -5);
-
-            // setting extended limits will reset the serialisation exception.
-            // this should be fine as the goal is to allow, at most, the value of extended limits.
+            // turning extended limits on afterwards keeps the value, as it is within the extended range.
             setExtendedLimits(true);
 
             checkSliderAtValue("Approach Rate", -5);
@@ -117,6 +123,8 @@ namespace osu.Game.Tests.Visual.UserInterface
         [Test]
         public void TestExtendedLimits()
         {
+            createControl(extendedLimits: false);
+
             setSliderValue("Circle Size", 99);
 
             checkSliderAtValue("Circle Size", 10);
@@ -278,7 +286,7 @@ namespace osu.Game.Tests.Visual.UserInterface
 
             settingsChangedFired();
 
-            setExtendedLimits(true);
+            setExtendedLimits(false);
 
             settingsChangedFired();
 

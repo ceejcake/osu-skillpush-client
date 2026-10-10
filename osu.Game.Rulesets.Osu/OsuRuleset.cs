@@ -144,7 +144,7 @@ namespace osu.Game.Rulesets.Osu
                 yield return new OsuModTouchDevice();
 
             if (mods.HasFlag(LegacyMods.ScoreV2))
-                yield return new ModScoreV2();
+                yield return new OsuModScoreV2();
         }
 
         public override LegacyMods ConvertToLegacyMods(Mod[] mods)
@@ -206,7 +206,9 @@ namespace osu.Game.Rulesets.Osu
                         new OsuModTargetPractice(),
                         new OsuModDifficultyAdjust(),
                         new OsuModClassic(),
+                        new OsuModScoreV2(),
                         new OsuModRandom(),
+                        new OsuModCrossScreen(),
                         new OsuModMirror(),
                         new MultiMod(new OsuModAlternate(), new OsuModSingleTap())
                     };
@@ -245,7 +247,6 @@ namespace osu.Game.Rulesets.Osu
                     return new Mod[]
                     {
                         new OsuModTouchDevice(),
-                        new ModScoreV2(),
                     };
 
                 default:
@@ -412,6 +413,9 @@ namespace osu.Game.Rulesets.Osu
         /// <seealso cref="OsuHitWindows"/>
         public override BeatmapDifficulty GetAdjustedDisplayDifficulty(IBeatmapInfo difficulty, IReadOnlyCollection<Mod> mods)
         {
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            mods = ModUtils.WithBpmLockApplied(mods, difficulty.BPM);
+
             BeatmapDifficulty adjustedDifficulty = base.GetAdjustedDisplayDifficulty(difficulty, mods);
             double rate = ModUtils.CalculateRateWithMods(mods);
 
@@ -428,6 +432,9 @@ namespace osu.Game.Rulesets.Osu
 
         public override IEnumerable<RulesetBeatmapAttribute> GetBeatmapAttributesForDisplay(IBeatmapInfo beatmapInfo, IReadOnlyCollection<Mod> mods)
         {
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            mods = ModUtils.WithBpmLockApplied(mods, beatmapInfo.BPM);
+
             var originalDifficulty = beatmapInfo.Difficulty;
             // `modAdjustedDifficulty` contains only the direct effect of mods.
             // `effectiveDifficulty` contains the "perceived" effect of rate-adjusting mods on OD and AR.

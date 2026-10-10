@@ -149,6 +149,17 @@ namespace osu.Game.Localisation
         /// </summary>
         public static LocalisableString ClassicScoreDisplay => new TranslatableString(getKey(@"classic_score_display"), @"Classic");
 
+        /// <summary>
+        /// "Hit error numbers on 100s and 50s"
+        /// </summary>
+        public static LocalisableString HitErrorJudgements => new TranslatableString(getKey(@"hit_error_judgements"), @"Hit error numbers on 100s and 50s");
+
+        /// <summary>
+        /// "Show how many milliseconds early or late a 100 or 50 was, in place of the judgement"
+        /// </summary>
+        public static LocalisableString HitErrorJudgementsDescription => new TranslatableString(getKey(@"hit_error_judgements_description"),
+            @"Show how many milliseconds early or late a 100 or 50 was, in place of the judgement");
+
         private static string getKey(string key) => $@"{prefix}:{key}";
     }
 }

@@ -51,6 +51,24 @@ namespace osu.Game.Screens.Select
 
         public RulesetInfo? Ruleset;
         public IReadOnlyList<Mod>? Mods;
+
+        /// <summary>
+        /// The star ratings of the library under <see cref="Ruleset"/> and <see cref="Mods"/>, as far as they are known.
+        /// </summary>
+        public StarRatingSnapshot? StarRatings;
+
+        /// <summary>
+        /// The star rating to filter, sort and group a beatmap by, which follows the ruleset and mods like the one displayed.
+        /// </summary>
+        public double GetStarRating(BeatmapInfo beatmap) => StarRatings?.GetStarRating(beatmap) ?? beatmap.StarRating;
+
+        /// <summary>
+        /// Whether the result of filtering can change when star ratings do.
+        /// </summary>
+        public bool DependsOnStarRating => Sort == SortMode.Difficulty
+                                           || Group == GroupMode.Difficulty
+                                           || StarDifficulty.HasFilter
+                                           || UserStarDifficulty.HasFilter;
         public bool AllowConvertedBeatmaps;
         public int? BeatmapSetId;
 

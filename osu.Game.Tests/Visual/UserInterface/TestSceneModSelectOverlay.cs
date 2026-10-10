@@ -18,6 +18,7 @@ using osu.Framework.Utils;
 using osu.Game.Beatmaps;
 using osu.Game.Configuration;
 using osu.Game.Graphics.UserInterface;
+using osu.Game.Graphics.UserInterfaceV2;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Mods;
 using osu.Game.Overlays.Settings;
@@ -108,6 +109,50 @@ namespace osu.Game.Tests.Visual.UserInterface
             AddStep("create screen", () => LoadScreen(screen = new TestModSelectOverlayScreen { SelectedMods = { BindTarget = SelectedMods } }));
             AddUntilStep("wait until screen is loaded", () => screen.IsLoaded, () => Is.True);
             waitForColumnLoad();
+        }
+
+        [Test]
+        public void TestModdedStarRatingSortingToggle()
+        {
+            AddStep("turn off", () => configManager.SetValue(OsuSetting.ModdedStarRatingSorting, false));
+            createScreen();
+            AddStep("show", () => modSelectOverlay.Show());
+
+            AddUntilStep("toggle shown", () => modSelectOverlay.ChildrenOfType<ModdedStarRatingSortingToggle>().SingleOrDefault()?.IsPresent == true);
+            AddAssert("toggle off", () => modSelectOverlay.ChildrenOfType<ModdedStarRatingSortingToggle>().Single().Active.Value, () => Is.False);
+
+            AddStep("click toggle", () =>
+            {
+                InputManager.MoveMouseTo(modSelectOverlay.ChildrenOfType<ModdedStarRatingSortingToggle>().Single());
+                InputManager.Click(MouseButton.Left);
+            });
+
+            AddAssert("setting turned on", () => configManager.Get<bool>(OsuSetting.ModdedStarRatingSorting), () => Is.True);
+            AddStep("turn off", () => configManager.SetValue(OsuSetting.ModdedStarRatingSorting, false));
+        }
+
+        [Test]
+        public void TestMusicPitchButton()
+        {
+            AddStep("reset pitch", () => configManager.SetValue(OsuSetting.MusicPitch, 1.0));
+            createScreen();
+            AddStep("show", () => modSelectOverlay.Show());
+
+            AddUntilStep("button shown", () => modSelectOverlay.ChildrenOfType<MusicPitchButton>().SingleOrDefault()?.IsPresent == true);
+            AddAssert("shows pitch", () => modSelectOverlay.ChildrenOfType<MusicPitchButton>().Single().Text.ToString(), () => Is.EqualTo("Pitch 1.00x"));
+
+            AddStep("click button", () =>
+            {
+                InputManager.MoveMouseTo(modSelectOverlay.ChildrenOfType<MusicPitchButton>().Single());
+                InputManager.Click(MouseButton.Left);
+            });
+            AddUntilStep("slider shown", () => this.ChildrenOfType<FormSliderBar<double>>().Any(s => s.Caption.ToString() == "Music pitch"));
+
+            AddStep("raise pitch", () => this.ChildrenOfType<FormSliderBar<double>>().Single(s => s.Caption.ToString() == "Music pitch").Current.Value = 1.25);
+            AddAssert("setting changed", () => configManager.Get<double>(OsuSetting.MusicPitch), () => Is.EqualTo(1.25));
+            AddAssert("button follows", () => modSelectOverlay.ChildrenOfType<MusicPitchButton>().Single().Text.ToString(), () => Is.EqualTo("Pitch 1.25x"));
+
+            AddStep("reset pitch", () => configManager.SetValue(OsuSetting.MusicPitch, 1.0));
         }
 
         [Test]
@@ -1033,7 +1078,7 @@ namespace osu.Game.Tests.Visual.UserInterface
         }
 
         [Test]
-        public void TestDifficultyAdjustModMultiplierIsCalculatedCorrectly()
+        public void TestDifficultyAdjustHasNoMultiplierPenalty()
         {
             createScreen();
             AddStep("set mods", () => SelectedMods.Value = new Mod[] { new OsuModDifficultyAdjust() });
@@ -1045,7 +1090,7 @@ namespace osu.Game.Tests.Visual.UserInterface
 
             AddStep("modify DA", () => SelectedMods.Value.OfType<OsuModDifficultyAdjust>().Single().CircleSize.Value = 3.9f);
             AddAssert("mod multiplier is correct", () => this.ChildrenOfType<RankingInformationDisplay>().Single().ModMultiplier.Value,
-                () => Is.EqualTo(0.95).Within(Precision.FLOAT_EPSILON));
+                () => Is.EqualTo(1).Within(Precision.FLOAT_EPSILON));
 
             AddStep("replace DA completely", () =>
             {
@@ -1059,7 +1104,7 @@ namespace osu.Game.Tests.Visual.UserInterface
                 };
             });
             AddAssert("mod multiplier is correct", () => this.ChildrenOfType<RankingInformationDisplay>().Single().ModMultiplier.Value,
-                () => Is.EqualTo(0.81).Within(Precision.FLOAT_EPSILON));
+                () => Is.EqualTo(1).Within(Precision.FLOAT_EPSILON));
 
             AddStep("change beatmap", () =>
             {
@@ -1074,7 +1119,7 @@ namespace osu.Game.Tests.Visual.UserInterface
                 modSelectOverlay.Beatmap.Value = beatmap;
             });
             AddAssert("mod multiplier is correct", () => this.ChildrenOfType<RankingInformationDisplay>().Single().ModMultiplier.Value,
-                () => Is.EqualTo(0.24).Within(Precision.FLOAT_EPSILON));
+                () => Is.EqualTo(1).Within(Precision.FLOAT_EPSILON));
         }
 
         private void waitForColumnLoad() => AddUntilStep("all column content loaded", () =>

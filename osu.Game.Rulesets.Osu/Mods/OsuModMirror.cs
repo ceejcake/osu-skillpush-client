@@ -14,11 +14,14 @@ namespace osu.Game.Rulesets.Osu.Mods
 {
     public class OsuModMirror : ModMirror, IApplicableToHitObject
     {
-        public override LocalisableString Description => "Flip objects on the chosen axes.";
+        public override LocalisableString Description => "Flip objects on the chosen axes, or turn the whole map on its side.";
         public override Type[] IncompatibleMods => new[] { typeof(ModHardRock) };
 
         [SettingSource("Flipped axes")]
         public Bindable<MirrorType> Reflection { get; } = new Bindable<MirrorType>();
+
+        [SettingSource("Rotation", "Turn the map a quarter turn, stretched to fill the playfield. Horizontal jumps become vertical and vertical jumps become horizontal.")]
+        public Bindable<MirrorRotation> Rotation { get; } = new Bindable<MirrorRotation>();
 
         public void ApplyToHitObject(HitObject hitObject)
         {
@@ -39,13 +42,36 @@ namespace osu.Game.Rulesets.Osu.Mods
                     OsuHitObjectGenerationUtils.ReflectVerticallyAlongPlayfield(osuObject);
                     break;
             }
+
+            switch (Rotation.Value)
+            {
+                case MirrorRotation.Clockwise:
+                    OsuHitObjectGenerationUtils.RotateQuarterTurnAlongPlayfield(osuObject, true);
+                    break;
+
+                case MirrorRotation.Counterclockwise:
+                    OsuHitObjectGenerationUtils.RotateQuarterTurnAlongPlayfield(osuObject, false);
+                    break;
+            }
         }
 
         public enum MirrorType
         {
             Horizontal,
             Vertical,
-            Both
+            Both,
+
+            /// <summary>
+            /// Nothing is flipped, for using <see cref="Rotation"/> on its own.
+            /// </summary>
+            None,
+        }
+
+        public enum MirrorRotation
+        {
+            None,
+            Clockwise,
+            Counterclockwise,
         }
     }
 }

@@ -46,6 +46,11 @@ namespace osu.Game.Overlays.Login
         [Resolved]
         private OsuConfigManager config { get; set; } = null!;
 
+        /// <summary>
+        /// Whether to show the login form while logged out, rather than the local player's offline profile.
+        /// </summary>
+        private bool showLoginForm;
+
         public override RectangleF BoundingBox => bounding ? base.BoundingBox : RectangleF.Empty;
 
         public bool Bounding
@@ -82,6 +87,16 @@ namespace osu.Game.Overlays.Login
             switch (state.NewValue)
             {
                 case APIState.Offline:
+                    if (!showLoginForm)
+                    {
+                        Child = new GuestProfilePanel
+                        {
+                            RequestHide = RequestHide,
+                            RequestLogin = ShowLoginForm,
+                        };
+                        break;
+                    }
+
                     Child = form = new LoginForm
                     {
                         RequestHide = RequestHide
@@ -207,6 +222,36 @@ namespace osu.Game.Overlays.Login
             if (form != null)
                 ScheduleAfterChildren(() => GetContainingFocusManager()?.ChangeFocus(form));
         });
+
+        /// <summary>
+        /// Switches from the offline profile to the login form.
+        /// </summary>
+        public void ShowLoginForm()
+        {
+            if (showLoginForm)
+                return;
+
+            showLoginForm = true;
+            refreshState();
+        }
+
+        /// <summary>
+        /// Switches back to the offline profile, if it was replaced by the login form.
+        /// </summary>
+        public void ShowProfile()
+        {
+            if (!showLoginForm)
+                return;
+
+            showLoginForm = false;
+            refreshState();
+        }
+
+        private void refreshState()
+        {
+            if (IsLoaded)
+                onlineStateChanged(new ValueChangedEvent<APIState>(apiState.Value, apiState.Value));
+        }
 
         private void updateDropdownCurrent(UserStatus? status)
         {

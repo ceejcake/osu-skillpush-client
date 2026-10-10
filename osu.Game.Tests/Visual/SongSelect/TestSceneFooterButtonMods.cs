@@ -99,11 +99,11 @@ namespace osu.Game.Tests.Visual.SongSelect
 
             var noFailMod = new Mod[] { new OsuModNoFail() };
             AddStep(@"Add NoFail", () => changeMods(noFailMod));
-            assertModsMultiplier(0.5);
+            assertModsMultiplier(1);
 
             var multipleDecrementMods = new Mod[] { new OsuModEasy(), new OsuModNoFail() };
             AddStep(@"Add Multiple Mods", () => changeMods(multipleDecrementMods));
-            assertModsMultiplier(0.8 * 0.5);
+            assertModsMultiplier(0.8);
         }
 
         [Test]
@@ -130,11 +130,12 @@ namespace osu.Game.Tests.Visual.SongSelect
             AddStep(@"Set Difficulty Adjust", () => changeMods([difficultyAdjustMod]));
             assertModsMultiplier(1);
 
+            // Difficulty adjust carries no score penalty, whatever is adjusted.
             AddStep("Adjust AR", () => difficultyAdjustMod.ApproachRate.Value = 3.3f);
-            assertModsMultiplier(0.85);
+            assertModsMultiplier(1);
 
             AddStep("Adjust HP", () => difficultyAdjustMod.DrainRate.Value = 6.5f);
-            assertModsMultiplier(0.6375);
+            assertModsMultiplier(1);
 
             AddStep("Change beatmap", () =>
             {
@@ -148,7 +149,7 @@ namespace osu.Game.Tests.Visual.SongSelect
                 };
                 Beatmap.Value = beatmap;
             });
-            assertModsMultiplier(0.75);
+            assertModsMultiplier(1);
         }
 
         [Test]

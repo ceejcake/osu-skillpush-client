@@ -164,7 +164,7 @@ namespace osu.Game.Screens.Play
             AllowRetry = isAutoplayPlayback,
         };
 
-        public bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
+        public override bool OnPressed(KeyBindingPressEvent<GlobalAction> e)
         {
             if (!LoadedBeatmapSuccessfully)
                 return false;
@@ -180,10 +180,14 @@ namespace osu.Game.Screens.Play
                     return true;
 
                 case GlobalAction.SeekReplayBackward:
+                // The in-game practice seek hotkeys share their default binding with the replay seek hotkeys,
+                // so they are treated as the same thing here.
+                case GlobalAction.PracticeSeekBackward:
                     SeekInDirection(-5 * (float)playbackSettings!.UserPlaybackRate.Value);
                     return true;
 
                 case GlobalAction.SeekReplayForward:
+                case GlobalAction.PracticeSeekForward:
                     SeekInDirection(5 * (float)playbackSettings!.UserPlaybackRate.Value);
                     return true;
 
@@ -202,7 +206,7 @@ namespace osu.Game.Screens.Play
                     return true;
             }
 
-            return false;
+            return base.OnPressed(e);
         }
 
         public void StepFrame(int direction)
@@ -227,7 +231,7 @@ namespace osu.Game.Screens.Play
             Seek(target);
         }
 
-        public void OnReleased(KeyBindingReleaseEvent<GlobalAction> e)
+        public override void OnReleased(KeyBindingReleaseEvent<GlobalAction> e)
         {
             switch (e.Action)
             {
@@ -235,6 +239,8 @@ namespace osu.Game.Screens.Play
                     playbackSettings!.UserPlaybackRate.Value = userPlaybackRateBeforeFastForward;
                     return;
             }
+
+            base.OnReleased(e);
         }
 
         protected override void PerformFail()

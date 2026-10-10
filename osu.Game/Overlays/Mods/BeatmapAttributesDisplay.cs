@@ -152,7 +152,8 @@ namespace osu.Game.Overlays.Mods
             if (BeatmapInfo.Value == null)
                 return;
 
-            double rate = ModUtils.CalculateRateWithMods(Mods.Value);
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            double rate = ModUtils.CalculateRateWithMods(ModUtils.WithBpmLockApplied(Mods.Value, BeatmapInfo.Value.BPM));
 
             bpmDisplay.Current.Value = FormatUtils.RoundBPM(BeatmapInfo.Value.BPM, rate);
 

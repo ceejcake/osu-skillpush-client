@@ -10,6 +10,7 @@ using osu.Framework.Localisation;
 using osu.Game.Online.API;
 using osu.Game.Online.Rooms;
 using osu.Game.Rulesets;
+using osu.Game.Beatmaps;
 using osu.Game.Rulesets.Mods;
 
 namespace osu.Game.Utils
@@ -285,6 +286,32 @@ namespace osu.Game.Utils
         /// </summary>
         /// <param name="mods">The list of selected mods.</param>
         /// <returns>The rate with mods.</returns>
+        /// <summary>
+        /// Settles any bpm lock among the given mods on the rate it gives a beatmap of the given BPM.
+        /// </summary>
+        /// <remarks>
+        /// A bpm lock only chooses its rate once applied to a beatmap, so until then the rate it reports is whatever its
+        /// speed change was last left at. Anything describing a beatmap before it is played should settle the lock first.
+        /// The given mods are left untouched; copies are returned for any which are changed.
+        /// </remarks>
+        /// <param name="mods">The mods to settle.</param>
+        /// <param name="beatmapBpm">The beatmap's most common BPM, as stored in <see cref="BeatmapInfo.BPM"/>.</param>
+        public static IReadOnlyCollection<Mod> WithBpmLockApplied(IReadOnlyCollection<Mod> mods, double beatmapBpm)
+        {
+            if (!mods.OfType<ModRateAdjust>().Any(m => m.LockBpm.Value))
+                return mods;
+
+            return mods.Select(mod =>
+            {
+                if (mod is not ModRateAdjust { LockBpm.Value: true } rateAdjust)
+                    return mod;
+
+                var locked = (ModRateAdjust)rateAdjust.DeepClone();
+                locked.LockTo(beatmapBpm);
+                return locked;
+            }).ToArray();
+        }
+
         public static double CalculateRateWithMods(IEnumerable<Mod> mods)
         {
             double rate = 1;

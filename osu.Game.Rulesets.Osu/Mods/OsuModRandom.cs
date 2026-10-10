@@ -25,7 +25,7 @@ namespace osu.Game.Rulesets.Osu.Mods
     {
         public override LocalisableString Description => "It never gets boring!";
 
-        public override Type[] IncompatibleMods => base.IncompatibleMods.Append(typeof(OsuModTargetPractice)).ToArray();
+        public override Type[] IncompatibleMods => base.IncompatibleMods.Concat(new[] { typeof(OsuModTargetPractice), typeof(OsuModCrossScreen) }).ToArray();
 
         [SettingSource("Angle sharpness", "How sharp angles should be")]
         public BindableFloat AngleSharpness { get; } = new BindableFloat(7)

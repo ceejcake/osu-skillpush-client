@@ -38,6 +38,7 @@ using osu.Game.Audio;
 using osu.Game.Beatmaps;
 using osu.Game.Beatmaps.ControlPoints;
 using osu.Game.Beatmaps.Formats;
+using osu.Game.Collections;
 using osu.Game.Configuration;
 using osu.Game.Database;
 using osu.Game.Extensions;
@@ -64,6 +65,7 @@ using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Scoring;
 using osu.Game.Skinning;
+using osu.Game.Users;
 using osu.Game.Utils;
 using RuntimeInfo = osu.Framework.RuntimeInfo;
 
@@ -209,6 +211,8 @@ namespace osu.Game
         private IBeatmapUpdater beatmapUpdater;
         private OnlineAssetCachingStore onlineAssetStore;
 
+        private GuestUserAvatar guestUserAvatar;
+
         private UserLookupCache userCache;
         private BeatmapLookupCache beatmapCache;
         protected LeaderboardManager LeaderboardManager { get; private set; }
@@ -287,6 +291,7 @@ namespace osu.Game
             Decoder.RegisterDependencies(RulesetStore);
 
             dependencies.CacheAs(Storage);
+            dependencies.Cache(new CollectionFolderManager(Storage));
 
             var largeStore = new LargeTextureStore(Host.Renderer, Host.CreateTextureLoaderStore(new NamespacedResourceStore<byte[]>(Resources, @"Textures")));
             largeStore.AddTextureSource(Host.CreateTextureLoaderStore(CreateOnlineStore()));
@@ -296,6 +301,9 @@ namespace osu.Game
 
             dependencies.CacheAs(LocalConfig);
             dependencies.CacheAs<IGameplaySettings>(LocalConfig);
+
+            base.Content.Add(guestUserAvatar = new GuestUserAvatar());
+            dependencies.Cache(guestUserAvatar);
 
             InitialiseFonts();
 
@@ -352,6 +360,10 @@ namespace osu.Game
 
             dependencies.Cache(beatmapCache = new BeatmapLookupCache());
             base.Content.Add(beatmapCache);
+
+            var localPerformanceTracker = new LocalPerformanceTracker();
+            dependencies.Cache(localPerformanceTracker);
+            base.Content.Add(localPerformanceTracker);
 
             dependencies.CacheAs<IRulesetConfigCache>(rulesetConfigCache = new RulesetConfigCache(realm, RulesetStore));
 

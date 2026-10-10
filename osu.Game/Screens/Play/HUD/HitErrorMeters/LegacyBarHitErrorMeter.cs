@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -35,43 +35,48 @@ namespace osu.Game.Screens.Play.HUD.HitErrorMeters
 
             hitWindows = HitWindows.GetAllAvailableWindows().Where(w => w.result.IsHit()).ToArray();
 
-            AutoSizeAxes = Axes.X;
-            Height = (bar_height * 4) * LegacySkin.STABLE_MAGIC_SCALE_FACTOR;
-            InternalChildren = new Drawable[]
+            AutoSizeAxes = Axes.Both;
+
+            InternalChild = SizeOverrideTarget = new Container
             {
-                new Box
+                AutoSizeAxes = Axes.X,
+                Height = (bar_height * 4) * LegacySkin.STABLE_MAGIC_SCALE_FACTOR,
+                Children = new Drawable[]
                 {
-                    RelativeSizeAxes = Axes.Both,
-                    Colour = Colour4.Black,
-                    Alpha = 0.6f,
-                },
-                colourBarContainer = new Container
-                {
-                    AutoSizeAxes = Axes.X,
-                    Height = bar_height * LegacySkin.STABLE_MAGIC_SCALE_FACTOR,
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                },
-                new Box
-                {
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                    Size = new Vector2(1.5f, bar_height * 4) * LegacySkin.STABLE_MAGIC_SCALE_FACTOR,
-                },
-                judgementLinePool = new DrawablePool<JudgementLine>(50),
-                judgementContainer = new Container
-                {
-                    RelativeSizeAxes = Axes.Both,
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                },
-                arrow = new Triangle
-                {
-                    Size = new Vector2(17, 8) * 0.6f,
-                    Anchor = Anchor.TopCentre,
-                    Origin = Anchor.BottomCentre,
-                    RelativePositionAxes = Axes.X,
-                    Scale = new Vector2(1, -1),
+                    new Box
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Colour = Colour4.Black,
+                        Alpha = 0.6f,
+                    },
+                    colourBarContainer = new Container
+                    {
+                        AutoSizeAxes = Axes.X,
+                        Height = bar_height * LegacySkin.STABLE_MAGIC_SCALE_FACTOR,
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                    },
+                    new Box
+                    {
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                        Size = new Vector2(1.5f, bar_height * 4) * LegacySkin.STABLE_MAGIC_SCALE_FACTOR,
+                    },
+                    judgementLinePool = new DrawablePool<JudgementLine>(50),
+                    judgementContainer = new Container
+                    {
+                        RelativeSizeAxes = Axes.Both,
+                        Anchor = Anchor.Centre,
+                        Origin = Anchor.Centre,
+                    },
+                    arrow = new Triangle
+                    {
+                        Size = new Vector2(17, 8) * 0.6f,
+                        Anchor = Anchor.TopCentre,
+                        Origin = Anchor.BottomCentre,
+                        RelativePositionAxes = Axes.X,
+                        Scale = new Vector2(1, -1),
+                    }
                 }
             };
 

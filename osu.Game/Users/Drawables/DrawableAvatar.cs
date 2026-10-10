@@ -9,6 +9,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
 using osu.Game.Graphics;
 using osu.Game.Online.API.Requests.Responses;
+using osu.Game.Users;
 
 namespace osu.Game.Users.Drawables
 {
@@ -31,13 +32,16 @@ namespace osu.Game.Users.Drawables
             Origin = Anchor.Centre;
         }
 
-        [BackgroundDependencyLoader]
-        private void load(LargeTextureStore textures, OnlineAssetCachingStore onlineTextures)
+        [BackgroundDependencyLoader(true)]
+        private void load(LargeTextureStore textures, OnlineAssetCachingStore onlineTextures, GuestUserAvatar guestAvatar)
         {
             if (user != null && user.OnlineID > 1)
                 // TODO: The fallback here should not need to exist. Users should be looked up and populated via UserLookupCache or otherwise
                 // in remaining cases where this is required (chat tabs, local leaderboard), at which point this should be removed.
                 Texture = onlineTextures.Get((user as APIUser)?.AvatarUrl ?? $@"https://a.ppy.sh/{user.OnlineID}");
+            else if (user != null)
+                // Offline play displays whichever avatar the local user has chosen for themselves.
+                Texture = guestAvatar?.Texture.Value;
 
             Texture ??= textures.Get(@"Online/avatar-guest");
         }

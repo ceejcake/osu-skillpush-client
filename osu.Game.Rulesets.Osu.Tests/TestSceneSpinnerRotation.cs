@@ -133,8 +133,8 @@ namespace osu.Game.Rulesets.Osu.Tests
             {
                 var scoreProcessor = ((ScoreExposedPlayer)Player).ScoreProcessor;
 
-                // multipled by 2 to nullify the score multiplier. (autoplay mod selected)
-                long totalScore = scoreProcessor.TotalScore.Value * 2;
+                // no mod in use carries a score multiplier any more, so the score is taken as-is.
+                long totalScore = scoreProcessor.TotalScore.Value;
                 return totalScore == (int)(drawableSpinner.Result.TotalRotation / 360) * scoreProcessor.GetBaseScoreForResult(new SpinnerTick().Judgement.MaxResult);
             });
 

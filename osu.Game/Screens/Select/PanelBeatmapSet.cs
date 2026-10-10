@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -225,6 +225,9 @@ namespace osu.Game.Screens.Select
         [Resolved]
         private ManageCollectionsDialog? manageCollectionsDialog { get; set; }
 
+        [Resolved]
+        private CollectionFolderManager? collectionFolders { get; set; }
+
         public override MenuItem[] ContextMenuItems
         {
             get
@@ -264,11 +267,10 @@ namespace osu.Game.Screens.Select
                     items.Add(new OsuMenuItemSpacer());
                 }
 
-                var collectionItems = realm.Realm.All<BeatmapCollection>()
-                                           .OrderBy(c => c.Name)
-                                           .AsEnumerable()
-                                           .Select(createCollectionMenuItem)
-                                           .ToList();
+                var collectionItems = CollectionFolderManager.GroupMenuItems(collectionFolders, realm.Realm.All<BeatmapCollection>()
+                                                                                                     .OrderBy(c => c.Name)
+                                                                                                     .AsEnumerable()
+                                                                                                     .Select(c => (c.ID, (Func<MenuItem>)(() => createCollectionMenuItem(c)))));
 
                 if (manageCollectionsDialog != null)
                     collectionItems.Add(new OsuMenuItem(CommonStrings.Manage, MenuItemType.Standard, manageCollectionsDialog.Show));

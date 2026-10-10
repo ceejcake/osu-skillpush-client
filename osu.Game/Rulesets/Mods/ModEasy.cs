@@ -14,7 +14,7 @@ namespace osu.Game.Rulesets.Mods
         public override string Acronym => "EZ";
         public override IconUsage? Icon => OsuIcon.ModEasy;
         public override ModType Type => ModType.DifficultyReduction;
-        public override Type[] IncompatibleMods => new[] { typeof(ModHardRock), typeof(ModDifficultyAdjust) };
+        public override Type[] IncompatibleMods => new[] { typeof(ModHardRock) };
         public override bool Ranked => UsesDefaultConfiguration;
         public override bool ValidForFreestyleAsRequiredMod => true;
 

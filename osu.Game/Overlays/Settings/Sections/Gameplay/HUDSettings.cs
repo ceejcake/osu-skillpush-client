@@ -65,6 +65,25 @@ namespace osu.Game.Overlays.Settings.Sections.Gameplay
                     Keywords = new[] { "hp", "bar" },
                     ApplyClassicDefault = c => ((IHasCurrentValue<bool>)c).Current.Value = false,
                 },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Override hit error bar size",
+                    HintText = "Use the size below for bar hit error meters on every skin, ignoring the skin's own scale.",
+                    Current = config.GetBindable<bool>(OsuSetting.HitErrorBarSizeOverride),
+                })
+                {
+                    Keywords = new[] { "hit error", "meter", "scale", "unstable rate" },
+                },
+                new SettingsItemV2(new FormSliderBar<float>
+                {
+                    Caption = "Hit error bar size",
+                    Current = config.GetBindable<float>(OsuSetting.HitErrorBarSize),
+                    KeyboardStep = 0.05f,
+                    DisplayAsPercentage = true,
+                })
+                {
+                    Keywords = new[] { "hit error", "meter", "scale", "unstable rate" },
+                },
             };
         }
     }

@@ -163,8 +163,7 @@ namespace osu.Game.Rulesets.Judgements
             if (JudgementBody != null)
                 RemoveInternal(JudgementBody, true);
 
-            AddInternal(JudgementBody = new SkinnableDrawable(new SkinComponentLookup<HitResult>(type), _ =>
-                CreateDefaultJudgement(type), confineMode: ConfineMode.NoScaling));
+            AddInternal(JudgementBody = CreateJudgementBody(type));
 
             JudgementBody.OnSkinChanged += () =>
             {
@@ -189,6 +188,21 @@ namespace osu.Game.Rulesets.Judgements
                         aboveHitObjectsContent.Add(proxiedContent);
                 }
             }
+        }
+
+        /// <summary>
+        /// Creates the drawable which displays the judgement, which a skin may replace with its own.
+        /// </summary>
+        protected virtual SkinnableDrawable CreateJudgementBody(HitResult type) =>
+            new SkinnableDrawable(new SkinComponentLookup<HitResult>(type), _ => CreateDefaultJudgement(type), confineMode: ConfineMode.NoScaling);
+
+        /// <summary>
+        /// Rebuilds the judgement's display, for when the way it should be displayed has changed rather than the result.
+        /// </summary>
+        protected void InvalidateJudgementBody()
+        {
+            currentDrawableType = null;
+            prepareDrawables();
         }
 
         protected virtual Drawable CreateDefaultJudgement(HitResult result) => new DefaultJudgementPiece(result);

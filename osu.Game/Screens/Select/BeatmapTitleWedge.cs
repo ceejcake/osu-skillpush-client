@@ -262,7 +262,8 @@ namespace osu.Game.Screens.Select
                 // This can take time as it is a synchronous task.
                 var beatmap = working.Value.Beatmap;
 
-                double rate = ModUtils.CalculateRateWithMods(mods.Value);
+                // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+                double rate = ModUtils.CalculateRateWithMods(ModUtils.WithBpmLockApplied(mods.Value, 60000 / beatmap.GetMostCommonBeatLength()));
 
                 int bpmMax = FormatUtils.RoundBPM(beatmap.ControlPointInfo.BPMMaximum, rate);
                 int bpmMin = FormatUtils.RoundBPM(beatmap.ControlPointInfo.BPMMinimum, rate);

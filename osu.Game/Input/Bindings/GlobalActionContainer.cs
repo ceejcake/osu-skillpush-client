@@ -205,7 +205,11 @@ namespace osu.Game.Input.Bindings
             new KeyBinding(new[] { InputKey.F3 }, GlobalAction.DecreaseScrollSpeed),
             new KeyBinding(new[] { InputKey.F4 }, GlobalAction.IncreaseScrollSpeed),
             new KeyBinding(new[] { InputKey.Shift, InputKey.Tab }, GlobalAction.ToggleInGameInterface),
-            new KeyBinding(InputKey.Tab, GlobalAction.ToggleInGameLeaderboard),
+            new KeyBinding(new[] { InputKey.Control, InputKey.Tab }, GlobalAction.ToggleInGameLeaderboard),
+            new KeyBinding(InputKey.Tab, GlobalAction.ToggleStrainGraph),
+            new KeyBinding(InputKey.Left, GlobalAction.PracticeSeekBackward),
+            new KeyBinding(InputKey.Right, GlobalAction.PracticeSeekForward),
+            new KeyBinding(InputKey.F7, GlobalAction.TogglePracticeCheckpoint),
             new KeyBinding(InputKey.MouseMiddle, GlobalAction.PauseGameplay),
             new KeyBinding(InputKey.Control, GlobalAction.HoldForHUD),
             new KeyBinding(InputKey.Enter, GlobalAction.ToggleChatFocus),
@@ -244,6 +248,9 @@ namespace osu.Game.Input.Bindings
             new KeyBinding(InputKey.BackSpace, GlobalAction.DeselectAllMods),
             new KeyBinding(new[] { InputKey.Control, InputKey.Up }, GlobalAction.IncreaseModSpeed),
             new KeyBinding(new[] { InputKey.Control, InputKey.Down }, GlobalAction.DecreaseModSpeed),
+            new KeyBinding(new[] { InputKey.Control, InputKey.Right }, GlobalAction.IncreaseModSpacing),
+            new KeyBinding(new[] { InputKey.Control, InputKey.Left }, GlobalAction.DecreaseModSpacing),
+            new KeyBinding(InputKey.F4, GlobalAction.SetBpmLock),
             new KeyBinding(InputKey.None, GlobalAction.AbsoluteScrollSongList),
         };
 
@@ -631,6 +638,27 @@ namespace osu.Game.Input.Bindings
 
         [LocalisableDescription(typeof(EditorStrings), nameof(EditorStrings.SeekToEnd))]
         EditorSeekToEnd,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.IncreaseModSpacing))]
+        IncreaseModSpacing,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.DecreaseModSpacing))]
+        DecreaseModSpacing,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.ToggleStrainGraph))]
+        ToggleStrainGraph,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.PracticeSeekBackward))]
+        PracticeSeekBackward,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.PracticeSeekForward))]
+        PracticeSeekForward,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.SetBpmLock))]
+        SetBpmLock,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.TogglePracticeCheckpoint))]
+        TogglePracticeCheckpoint,
     }
 
     public enum GlobalActionCategory

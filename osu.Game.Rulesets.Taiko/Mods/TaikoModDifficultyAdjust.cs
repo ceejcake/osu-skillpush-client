@@ -3,6 +3,7 @@
 
 using System.Collections.Generic;
 using osu.Framework.Localisation;
+using osu.Framework.Bindables;
 using osu.Game.Beatmaps;
 using osu.Game.Configuration;
 using osu.Game.Extensions;
@@ -12,7 +13,10 @@ namespace osu.Game.Rulesets.Taiko.Mods
 {
     public class TaikoModDifficultyAdjust : ModDifficultyAdjust
     {
-        [SettingSource("Scroll Speed", "Adjust a beatmap's set scroll speed", LAST_SETTING_ORDER + 1, SettingControlType = typeof(DifficultyAdjustSettingsControl))]
+        [SettingSource("Adjust scroll speed", "Take over this beatmap's scroll speed, ignoring what other mods would do to it.", LAST_SETTING_ORDER + 1)]
+        public BindableBool AdjustScrollSpeed { get; } = new BindableBool();
+
+        [SettingSource("Scroll Speed", "Adjust a beatmap's set scroll speed", LAST_SETTING_ORDER + 2, SettingControlType = typeof(DifficultyAdjustSettingsControl))]
         public DifficultyBindable ScrollSpeed { get; } = new DifficultyBindable
         {
             Precision = 0.05f,
@@ -55,7 +59,7 @@ namespace osu.Game.Rulesets.Taiko.Mods
         {
             base.ApplySettings(difficulty);
 
-            if (ScrollSpeed.Value != null) difficulty.SliderMultiplier *= ScrollSpeed.Value.Value;
+            if (AdjustScrollSpeed.Value && ScrollSpeed.Value != null) difficulty.SliderMultiplier *= ScrollSpeed.Value.Value;
         }
     }
 }

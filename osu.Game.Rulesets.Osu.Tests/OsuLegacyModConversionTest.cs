@@ -30,7 +30,7 @@ namespace osu.Game.Rulesets.Osu.Tests
             new object[] { LegacyMods.Autopilot, new[] { typeof(OsuModAutopilot) } },
             new object[] { LegacyMods.Target, new[] { typeof(OsuModTargetPractice) } },
             new object[] { LegacyMods.HardRock | LegacyMods.DoubleTime, new[] { typeof(OsuModHardRock), typeof(OsuModDoubleTime) } },
-            new object[] { LegacyMods.ScoreV2, new[] { typeof(ModScoreV2) } },
+            new object[] { LegacyMods.ScoreV2, new[] { typeof(OsuModScoreV2) } },
         };
 
         [TestCaseSource(nameof(osu_mod_mapping))]

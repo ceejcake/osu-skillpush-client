@@ -17,7 +17,7 @@ namespace osu.Game.Rulesets.Mania.Scoring
             #region Difficulty Reduction
 
             Single<ManiaModEasy>(hasMultiplier: 0.5);
-            Single<ManiaModNoFail>(hasMultiplier: 0.5);
+            // No Fail (1.0x)
             Single<ManiaModHalfTime>(hasMultiplier: halfTime => rateAdjustMultiplier(halfTime.SpeedChange.Value));
             Single<ManiaModDaycore>(hasMultiplier: daycore => rateAdjustMultiplier(daycore.SpeedChange.Value));
             Single<ManiaModNoRelease>(hasMultiplier: 0.9);
@@ -44,7 +44,7 @@ namespace osu.Game.Rulesets.Mania.Scoring
             // Random
             // Dual Stages
             // Mirror
-            Single<ManiaModDifficultyAdjust>(hasMultiplier: 0.5);
+            // Difficulty Adjust (1.0x)
             Single<ManiaModClassic>(hasMultiplier: _ => classicMultiplier(Context.Score));
             // Invert
             Single<ManiaModConstantSpeed>(hasMultiplier: 0.9);

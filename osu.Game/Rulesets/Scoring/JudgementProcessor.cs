@@ -121,6 +121,14 @@ namespace osu.Game.Rulesets.Scoring
         }
 
         /// <summary>
+        /// Resets this <see cref="JudgementProcessor"/> to a default state, discarding all judgements applied so far.
+        /// </summary>
+        /// <remarks>
+        /// Maximum statistics calculated from the beatmap are retained, so this represents the state of a fresh play.
+        /// </remarks>
+        public void ResetToDefaultState() => Reset(false);
+
+        /// <summary>
         /// Reset all statistics based on header information contained within a replay frame.
         /// </summary>
         /// <remarks>

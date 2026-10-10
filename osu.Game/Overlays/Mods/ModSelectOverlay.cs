@@ -191,6 +191,7 @@ namespace osu.Game.Overlays.Mods
                                     HoldFocus = false,
                                     Width = 300,
                                 },
+                                CreateSearchBarAccessory()?.With(d => d.X = 310) ?? Empty(),
                                 customisationPanel = new ModCustomisationPanel
                                 {
                                     Anchor = Anchor.TopRight,
@@ -208,6 +209,11 @@ namespace osu.Game.Overlays.Mods
 
             textSearchStartsActive = configManager.GetBindable<bool>(OsuSetting.ModSelectTextSearchStartsActive);
         }
+
+        /// <summary>
+        /// Creates a control shown to the right of the search box, if any.
+        /// </summary>
+        protected virtual Drawable? CreateSearchBarAccessory() => null;
 
         public override void Hide()
         {

@@ -180,6 +180,11 @@ namespace osu.Game.Rulesets.Scoring
         /// </summary>
         private double scoreMultiplier = 1;
 
+        /// <summary>
+        /// An alternative scoring formula provided by a mod, if one is active.
+        /// </summary>
+        private IScoringFormula? scoringFormula;
+
         public Dictionary<HitResult, int> MaximumStatistics
         {
             get
@@ -211,6 +216,8 @@ namespace osu.Game.Rulesets.Scoring
 
             Mods.ValueChanged += mods =>
             {
+                scoringFormula = mods.NewValue.OfType<IScoringFormula>().SingleOrDefault();
+
                 updateScoreMultiplier();
                 updateScore();
                 updateRank();
@@ -341,7 +348,8 @@ namespace osu.Game.Rulesets.Scoring
         /// Gets the final score change to be applied to the combo portion of the score.
         /// </summary>
         /// <param name="result">The judgement result.</param>
-        protected virtual double GetComboScoreChange(JudgementResult result) => GetBaseScoreForResult(result.Judgement.MaxResult) * Math.Pow(result.ComboAfterJudgement, COMBO_EXPONENT);
+        protected virtual double GetComboScoreChange(JudgementResult result) => scoringFormula?.GetComboScoreChange(this, result)
+                                                                                 ?? GetBaseScoreForResult(result.Judgement.MaxResult) * Math.Pow(result.ComboAfterJudgement, COMBO_EXPONENT);
 
         public virtual int GetBaseScoreForResult(HitResult result)
         {
@@ -397,7 +405,10 @@ namespace osu.Game.Rulesets.Scoring
             double comboProgress = maximumComboPortion > 0 ? currentComboPortion / maximumComboPortion : 1;
             double accuracyProgress = maximumAccuracyJudgementCount > 0 ? (double)currentAccuracyJudgementCount / maximumAccuracyJudgementCount : 1;
 
-            TotalScoreWithoutMods.Value = (long)Math.Round(ComputeTotalScore(comboProgress, accuracyProgress, currentBonusPortion));
+            double totalScore = scoringFormula?.ComputeTotalScore(this, comboProgress, accuracyProgress, currentBonusPortion)
+                                ?? ComputeTotalScore(comboProgress, accuracyProgress, currentBonusPortion);
+
+            TotalScoreWithoutMods.Value = (long)Math.Round(totalScore);
             TotalScore.Value = (long)Math.Round(TotalScoreWithoutMods.Value * scoreMultiplier);
         }
 

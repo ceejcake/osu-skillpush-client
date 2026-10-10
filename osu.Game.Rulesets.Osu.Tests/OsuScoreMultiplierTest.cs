@@ -29,7 +29,7 @@ namespace osu.Game.Rulesets.Osu.Tests
             [new Mod[] { new OsuModEasy { Retries = { Value = 5 } } }, 0.5],
             [new Mod[] { new OsuModEasy { Retries = { Value = 8 } } }, 0.4],
 
-            [new Mod[] { new OsuModNoFail() }, 0.5],
+            [new Mod[] { new OsuModNoFail() }, 1.0],
 
             [new Mod[] { new OsuModHalfTime { SpeedChange = { Value = 0.50 } } }, 0.20],
             [new Mod[] { new OsuModHalfTime { SpeedChange = { Value = 0.55 } } }, 0.27],
@@ -198,6 +198,7 @@ namespace osu.Game.Rulesets.Osu.Tests
 
             [new Mod[] { new OsuModTouchDevice() }, 1],
             [new Mod[] { new ModScoreV2() }, 1],
+            [new Mod[] { new OsuModScoreV2() }, 1],
 
             #endregion
 
@@ -229,21 +230,10 @@ namespace osu.Game.Rulesets.Osu.Tests
         public void TestMultipliers(Mod[] mods, double expectedMultiplier)
             => TestModCombination(mods, expectedMultiplier);
 
-        [TestCase(null, null, null, null, 1)]
-        [TestCase(2.9f, null, null, null, 0.95)]
-        [TestCase(3.1f, null, null, null, 0.95)]
-        [TestCase(null, 3.9f, null, null, 0.95)]
-        [TestCase(null, 4.1f, null, null, 0.95)]
-        [TestCase(null, null, 4.9f, null, 0.95)]
-        [TestCase(null, null, 5.1f, null, 0.95)]
-        [TestCase(null, null, null, 5.9f, 0.95)]
-        [TestCase(null, null, null, 6.1f, 0.95)]
-        [TestCase(2.9f, 3.9f, null, null, 0.95 * 0.95)]
-        [TestCase(2.9f, 3.9f, 4.9f, null, 0.95 * 0.95 * 0.95)]
-        [TestCase(2.9f, 3.9f, 4.9f, 5.9f, 0.95 * 0.95 * 0.95 * 0.95)]
-        [TestCase(0.0f, null, null, null, 0.1)]
-        [TestCase(0.0f, 0.0f, 0.0f, 0.0f, 0.1)]
-        public void TestDifficultyAdjust(float? cs, float? ar, float? od, float? hp, double expectedMultiplier)
+        [TestCase(null, null, null, null)]
+        [TestCase(2.9f, null, null, null)]
+        [TestCase(0.0f, 0.0f, 0.0f, 0.0f)]
+        public void TestDifficultyAdjustHasNoPenalty(float? cs, float? ar, float? od, float? hp)
         {
             var difficulty = new BeatmapDifficulty
             {
@@ -254,14 +244,17 @@ namespace osu.Game.Rulesets.Osu.Tests
             };
             var mod = new OsuModDifficultyAdjust
             {
+                AdjustCircleSize = { Value = true },
                 CircleSize = { Value = cs },
                 ApproachRate = { Value = ar },
+                AdjustOverallDifficulty = { Value = true },
                 OverallDifficulty = { Value = od },
+                AdjustDrainRate = { Value = true },
                 DrainRate = { Value = hp },
             };
 
             var calculator = Ruleset.CreateScoreMultiplierCalculator(new ScoreMultiplierContext(difficulty));
-            Assert.That(calculator.CalculateFor([mod]), Is.EqualTo(expectedMultiplier).Within(Precision.FLOAT_EPSILON));
+            Assert.That(calculator.CalculateFor([mod]), Is.EqualTo(1).Within(Precision.FLOAT_EPSILON));
         }
 
         [TestCase(30000001, 0.96)]

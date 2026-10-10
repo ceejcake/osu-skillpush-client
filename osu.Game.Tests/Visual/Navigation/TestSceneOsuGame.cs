@@ -49,6 +49,7 @@ namespace osu.Game.Tests.Visual.Navigation
             typeof(UserProfileOverlay),
             typeof(BeatmapSetOverlay),
             typeof(LoginOverlay),
+            typeof(ModdedStarRatingCache),
             typeof(MusicController),
             typeof(AccountCreationOverlay),
             typeof(IDialogOverlay),
@@ -125,6 +126,14 @@ namespace osu.Game.Tests.Visual.Navigation
 
             AddAssert("ruleset still valid", () => Ruleset.Value.Available);
             AddAssert("ruleset unchanged", () => ReferenceEquals(Ruleset.Value, ruleset));
+        }
+
+        [Test]
+        public void TestModdedStarRatingProgressCanBeShown()
+        {
+            // The progress notification needs the notification overlay, which is only available partway through the game's loading.
+            AddUntilStep("star rating cache loaded", () => Game.Dependencies.Get<ModdedStarRatingCache>()?.IsLoaded == true);
+            AddAssert("can show progress", () => Game.Dependencies.Get<ModdedStarRatingCache>().CanShowProgress);
         }
 
         [Test]

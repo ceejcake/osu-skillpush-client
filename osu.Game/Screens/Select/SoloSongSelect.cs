@@ -4,18 +4,25 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using osu.Framework.Allocation;
 using osu.Framework.Audio;
 using osu.Framework.Audio.Sample;
+using osu.Framework.Extensions;
 using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Graphics.Sprites;
+using osu.Framework.Logging;
 using osu.Framework.Screens;
 using osu.Game.Beatmaps;
+using osu.Game.Beatmaps.StreamPractice;
+using osu.Game.Configuration;
+using osu.Game.Database;
 using osu.Game.Graphics.UserInterface;
 using osu.Game.Localisation;
 using osu.Game.Online.API;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Notifications;
+using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Screens.Edit;
 using osu.Game.Screens.Play;
@@ -64,6 +71,7 @@ namespace osu.Game.Screens.Select
         {
             yield return new OsuMenuItem(ButtonSystemStrings.Play.ToSentence(), MenuItemType.Highlighted, () => SelectAndRun(beatmap, OnStart)) { Icon = FontAwesome.Solid.Check };
             yield return new OsuMenuItem(ButtonSystemStrings.Edit.ToSentence(), MenuItemType.Standard, () => Edit(beatmap)) { Icon = FontAwesome.Solid.PencilAlt };
+            yield return new OsuMenuItem("Generate stream practice map", MenuItemType.Standard, () => GenerateStreamPracticeMap(beatmap)) { Icon = FontAwesome.Solid.CircleNotch };
 
             yield return new OsuMenuItemSpacer();
 
@@ -143,6 +151,57 @@ namespace osu.Game.Screens.Select
 
                 return player;
             }
+        }
+
+        [Resolved]
+        private RealmAccess realm { get; set; } = null!;
+
+        [Resolved]
+        private RulesetStore rulesets { get; set; } = null!;
+
+        [Resolved]
+        private OsuConfigManager config { get; set; } = null!;
+
+        /// <summary>
+        /// Generates a stream practice beatmap following the timing of <paramref name="beatmap"/>, into a set shared by all of them.
+        /// </summary>
+        public void GenerateStreamPracticeMap(BeatmapInfo beatmap)
+        {
+            var notification = new ProgressNotification
+            {
+                Text = $"Generating stream practice map from {beatmap.GetDisplayTitle()}",
+                State = ProgressNotificationState.Active,
+            };
+
+            notifications?.Post(notification);
+
+            var generator = new StreamPracticeGenerator(beatmaps, realm, rulesets, config);
+            var creator = api.LocalUser.Value;
+            var options = new StreamPracticeOptions(config.Get<StreamPracticePattern>(OsuSetting.StreamPracticePattern), config.Get<int>(OsuSetting.StreamPracticeBurstLength));
+
+            Task.Run(() => generator.Generate(beatmap, creator, options)).ContinueWith(task => Schedule(() =>
+            {
+                if (task.Exception != null)
+                {
+                    Logger.Error(task.Exception, "Failed to generate a stream practice map");
+
+                    notification.Text = $"Couldn't generate a stream practice map: {task.Exception.GetBaseException().Message}";
+                    notification.State = ProgressNotificationState.Cancelled;
+                    return;
+                }
+
+                var generated = task.GetResultSafely();
+
+                notification.CompletionText = $"Generated {generated.DifficultyName}. Click to play it.";
+                notification.CompletionClickAction = () =>
+                {
+                    if (generated.BeatmapSet != null)
+                        game?.PresentBeatmap(generated.BeatmapSet, b => b.ID == generated.ID);
+
+                    return true;
+                };
+                notification.State = ProgressNotificationState.Completed;
+            }));
         }
 
         public void Edit(BeatmapInfo beatmap)

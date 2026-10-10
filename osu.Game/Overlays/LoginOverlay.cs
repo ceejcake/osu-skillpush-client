@@ -74,6 +74,9 @@ namespace osu.Game.Overlays
 
         protected override void PopIn()
         {
+            // Opening afresh starts from the offline profile, rather than a login form left open last time.
+            panel.ShowProfile();
+
             panel.Bounding = true;
             this.FadeIn(transition_time, Easing.OutQuint);
             FadeEdgeEffectTo(WaveContainer.SHADOW_OPACITY, WaveContainer.APPEAR_DURATION, Easing.Out);

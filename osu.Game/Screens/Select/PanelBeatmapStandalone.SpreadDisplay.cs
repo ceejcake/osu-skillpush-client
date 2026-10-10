@@ -44,6 +44,9 @@ namespace osu.Game.Screens.Select
             [Resolved]
             private OsuColour colours { get; set; } = null!;
 
+            [Resolved]
+            private ModdedStarRatingCache? starRatingCache { get; set; }
+
             private FillFlowContainer preceding = null!;
             public Circle Current { get; private set; } = null!;
             private FillFlowContainer succeeding = null!;
@@ -142,9 +145,24 @@ namespace osu.Game.Screens.Select
                 showConvertedBeatmaps.BindValueChanged(_ => updateBeatmap());
                 scopedBeatmapSet.BindValueChanged(_ => updateBeatmap(), true);
                 Selected.BindValueChanged(_ => updateEnabled());
+
+                if (starRatingCache != null)
+                    starRatingCache.RatingsChanged += onRatingsChanged;
                 scopedBeatmapSet.BindDisabledChanged(_ => updateEnabled(), true);
                 Enabled.BindValueChanged(_ => updateAppearance(), true);
                 FinishTransforms(true);
+            }
+
+            private void onRatingsChanged() => Scheduler.AddOnce(updateBeatmap);
+
+            private double getStarRating(BeatmapInfo beatmap) => starRatingCache?.Current.GetStarRating(beatmap) ?? beatmap.StarRating;
+
+            protected override void Dispose(bool isDisposing)
+            {
+                if (starRatingCache != null)
+                    starRatingCache.RatingsChanged -= onRatingsChanged;
+
+                base.Dispose(isDisposing);
             }
 
             private void updateBeatmap()
@@ -161,8 +179,9 @@ namespace osu.Game.Screens.Select
                 var otherStarDifficulties = Beatmap.Value.BeatmapSet!.Beatmaps
                                                    .Except([Beatmap.Value])
                                                    .Where(b => b.AllowGameplayWithRuleset(ruleset.Value, showConvertedBeatmaps.Value))
-                                                   .OrderBy(b => b.StarRating)
-                                                   .Select(b => b.StarRating)
+                                                   // Compared against this beatmap's star rating, which follows the mods, so these have to as well.
+                                                   .Select(getStarRating)
+                                                   .Order()
                                                    .ToList();
                 this.FadeTo(otherStarDifficulties.Count > 0 ? 1 : 0, transition_duration, Easing.OutQuint);
 

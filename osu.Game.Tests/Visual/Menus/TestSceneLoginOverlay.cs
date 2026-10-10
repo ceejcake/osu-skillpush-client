@@ -57,9 +57,36 @@ namespace osu.Game.Tests.Visual.Menus
         }
 
         [Test]
+        public void TestOfflineShowsProfile()
+        {
+            // The overlay is shared between tests, and a previous one may have left the login form open.
+            AddStep("reopen overlay", () =>
+            {
+                loginOverlay.Hide();
+                loginOverlay.Show();
+            });
+            AddStep("set guest name", () => localConfig.SetValue(OsuSetting.GuestUsername, "angel devil fan 67"));
+            AddStep("logout", () => API.Logout());
+            assertAPIState(APIState.Offline);
+
+            AddUntilStep("profile shown", () => loginOverlay.ChildrenOfType<GuestProfilePanel>().SingleOrDefault(), () => Is.Not.Null);
+            AddAssert("no login form", () => loginOverlay.ChildrenOfType<LoginForm>().Any(), () => Is.False);
+
+            showLoginForm();
+            AddAssert("profile replaced", () => loginOverlay.ChildrenOfType<GuestProfilePanel>().Any(), () => Is.False);
+
+            AddStep("hide overlay", () => loginOverlay.Hide());
+            AddStep("show overlay", () => loginOverlay.Show());
+            AddUntilStep("profile shown again", () => loginOverlay.ChildrenOfType<GuestProfilePanel>().SingleOrDefault(), () => Is.Not.Null);
+
+            AddStep("reset guest name", () => localConfig.SetValue(OsuSetting.GuestUsername, GuestUser.DEFAULT_USERNAME));
+        }
+
+        [Test]
         public void TestLoginSuccess_EmailVerification()
         {
             AddStep("logout", () => API.Logout());
+            showLoginForm();
             assertAPIState(APIState.Offline);
 
             AddStep("enter password", () => loginOverlay.ChildrenOfType<OsuPasswordTextBox>().First().Text = "password");
@@ -101,6 +128,7 @@ namespace osu.Game.Tests.Visual.Menus
         public void TestLoginSuccess_TOTPVerification()
         {
             AddStep("logout", () => API.Logout());
+            showLoginForm();
             assertAPIState(APIState.Offline);
             AddStep("expect totp verification", () => dummyAPI.SessionVerificationMethod = SessionVerificationMethod.TimedOneTimePassword);
 
@@ -143,6 +171,7 @@ namespace osu.Game.Tests.Visual.Menus
         public void TestLoginSuccess_TOTPVerification_FallbackToEmail()
         {
             AddStep("logout", () => API.Logout());
+            showLoginForm();
             assertAPIState(APIState.Offline);
             AddStep("expect totp verification", () => dummyAPI.SessionVerificationMethod = SessionVerificationMethod.TimedOneTimePassword);
 
@@ -197,6 +226,7 @@ namespace osu.Game.Tests.Visual.Menus
             bool firstAttemptHandled = false;
 
             AddStep("logout", () => API.Logout());
+            showLoginForm();
             assertAPIState(APIState.Offline);
             AddStep("expect totp verification", () => dummyAPI.SessionVerificationMethod = SessionVerificationMethod.TimedOneTimePassword);
 
@@ -248,6 +278,15 @@ namespace osu.Game.Tests.Visual.Menus
             AddAssert($"dropdown state is {state}", () => loginOverlay.ChildrenOfType<UserDropdown>().First().Current.Value, () => Is.EqualTo(state));
         }
 
+        /// <summary>
+        /// While logged out the offline profile is shown first, so the form has to be asked for.
+        /// </summary>
+        private void showLoginForm()
+        {
+            AddStep("switch to login form", () => loginOverlay.ChildrenOfType<LoginPanel>().Single().ShowLoginForm());
+            AddUntilStep("wait for login form", () => loginOverlay.ChildrenOfType<LoginForm>().SingleOrDefault(), () => Is.Not.Null);
+        }
+
         private void assertAPIState(APIState expected) =>
             AddUntilStep($"login state is {expected}", () => API.State.Value, () => Is.EqualTo(expected));
 
@@ -257,6 +296,7 @@ namespace osu.Game.Tests.Visual.Menus
             bool verificationHandled = false;
             AddStep("reset flag", () => verificationHandled = false);
             AddStep("logout", () => API.Logout());
+            showLoginForm();
             assertAPIState(APIState.Offline);
 
             AddStep("enter password", () => loginOverlay.ChildrenOfType<OsuPasswordTextBox>().First().Text = "password");
@@ -294,6 +334,7 @@ namespace osu.Game.Tests.Visual.Menus
                 API.Logout();
                 ((DummyAPIAccess)API).FailNextLogin();
             });
+            showLoginForm();
 
             AddStep("enter password", () => loginOverlay.ChildrenOfType<OsuPasswordTextBox>().First().Text = "password");
             AddStep("submit", () => loginOverlay.ChildrenOfType<OsuButton>().First(b => b.Text.ToString() == "Sign in").TriggerClick());
@@ -307,6 +348,7 @@ namespace osu.Game.Tests.Visual.Menus
                 API.Logout();
                 ((DummyAPIAccess)API).PauseOnConnectingNextLogin();
             });
+            showLoginForm();
 
             AddStep("enter password", () => loginOverlay.ChildrenOfType<OsuPasswordTextBox>().First().Text = "password");
             AddStep("submit", () => loginOverlay.ChildrenOfType<OsuButton>().First(b => b.Text.ToString() == "Sign in").TriggerClick());
@@ -316,6 +358,7 @@ namespace osu.Game.Tests.Visual.Menus
         public void TestClickingOnFlagClosesOverlay()
         {
             AddStep("logout", () => API.Logout());
+            showLoginForm();
             AddStep("enter password", () => loginOverlay.ChildrenOfType<OsuPasswordTextBox>().First().Text = "password");
             AddStep("submit", () => loginOverlay.ChildrenOfType<OsuButton>().First(b => b.Text.ToString() == "Sign in").TriggerClick());
 
@@ -338,6 +381,7 @@ namespace osu.Game.Tests.Visual.Menus
         public void TestUncheckingRememberUsernameClearsIt()
         {
             AddStep("logout", () => API.Logout());
+            showLoginForm();
             AddStep("set username", () => localConfig.SetValue(OsuSetting.Username, "test_user"));
             AddStep("set remember password", () => localConfig.SetValue(OsuSetting.SavePassword, true));
             AddStep("uncheck remember username", () =>
@@ -354,6 +398,7 @@ namespace osu.Game.Tests.Visual.Menus
         public void TestUncheckingRememberPasswordClearsToken()
         {
             AddStep("logout", () => API.Logout());
+            showLoginForm();
             AddStep("set token", () => localConfig.SetValue(OsuSetting.Token, "test_token"));
             AddStep("set remember password", () => localConfig.SetValue(OsuSetting.SavePassword, true));
             AddStep("uncheck remember token", () =>

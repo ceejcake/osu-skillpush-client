@@ -1,4 +1,4 @@
-// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
+﻿// Copyright (c) ppy Pty Ltd <contact@ppy.sh>. Licensed under the MIT Licence.
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
@@ -25,13 +25,28 @@ namespace osu.Game.Collections
         public LocalisableString CollectionName { get; }
 
         /// <summary>
+        /// The folder this collection is displayed inside, if any.
+        /// </summary>
+        public string? Folder { get; }
+
+        /// <summary>
+        /// Whether this is the first entry for this collection. Collections inside multiple folders have one entry per folder,
+        /// and only the first is shown while searching so that results aren't duplicated.
+        /// </summary>
+        public bool IsPrimary { get; } = true;
+
+        /// <summary>
         /// Creates a new <see cref="CollectionFilterMenuItem"/>.
         /// </summary>
         /// <param name="collection">The collection to filter beatmaps from.</param>
-        public CollectionFilterMenuItem(Live<BeatmapCollection> collection)
+        /// <param name="folder">The folder the collection is displayed inside, if any.</param>
+        /// <param name="isPrimary">Whether this is the first entry for this collection.</param>
+        public CollectionFilterMenuItem(Live<BeatmapCollection> collection, string? folder = null, bool isPrimary = true)
             : this(collection.PerformRead(c => c.Name))
         {
             Collection = collection;
+            Folder = folder;
+            IsPrimary = isPrimary;
         }
 
         protected CollectionFilterMenuItem(LocalisableString name)
@@ -46,10 +61,10 @@ namespace osu.Game.Collections
 
             if (Collection == null) return false;
 
-            return Collection.ID == other.Collection?.ID;
+            return Collection.ID == other.Collection?.ID && Folder == other.Folder;
         }
 
-        public override int GetHashCode() => Collection?.ID.GetHashCode() ?? 0;
+        public override int GetHashCode() => HashCode.Combine(Collection?.ID, Folder);
     }
 
     public class AllBeatmapsCollectionFilterMenuItem : CollectionFilterMenuItem
@@ -74,5 +89,23 @@ namespace osu.Game.Collections
         public override bool Equals(CollectionFilterMenuItem? other) => other is ManageCollectionsFilterMenuItem;
 
         public override int GetHashCode() => 2;
+    }
+
+    /// <summary>
+    /// A non-selectable header grouping collections inside a folder.
+    /// </summary>
+    public class CollectionFolderFilterMenuItem : CollectionFilterMenuItem
+    {
+        public readonly string FolderName;
+
+        public CollectionFolderFilterMenuItem(string folderName, int collectionCount)
+            : base($"{folderName} ({collectionCount})")
+        {
+            FolderName = folderName;
+        }
+
+        public override bool Equals(CollectionFilterMenuItem? other) => other is CollectionFolderFilterMenuItem folder && folder.FolderName == FolderName;
+
+        public override int GetHashCode() => HashCode.Combine(3, FolderName);
     }
 }

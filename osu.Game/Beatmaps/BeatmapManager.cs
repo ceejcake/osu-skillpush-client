@@ -209,7 +209,15 @@ namespace osu.Game.Beatmaps
             return addDifficultyToSet(targetBeatmapSet, newBeatmap, referenceWorkingBeatmap.Skin, referenceWorkingBeatmap.Storyboard);
         }
 
-        private WorkingBeatmap addDifficultyToSet(BeatmapSetInfo targetBeatmapSet, IBeatmap newBeatmap, ISkin beatmapSkin, Storyboard storyboard)
+        /// <summary>
+        /// Add the provided <paramref name="newBeatmap"/> to the provided <paramref name="targetBeatmapSet"/> as a new difficulty.
+        /// </summary>
+        /// <param name="targetBeatmapSet">The detached <see cref="BeatmapSetInfo"/> to add the difficulty to.</param>
+        /// <param name="newBeatmap">The beatmap to add, whose <see cref="IBeatmap.BeatmapInfo"/> must not yet belong to a set.</param>
+        public virtual WorkingBeatmap AddDifficulty(BeatmapSetInfo targetBeatmapSet, IBeatmap newBeatmap) =>
+            addDifficultyToSet(targetBeatmapSet, newBeatmap, null, null);
+
+        private WorkingBeatmap addDifficultyToSet(BeatmapSetInfo targetBeatmapSet, IBeatmap newBeatmap, ISkin? beatmapSkin, Storyboard? storyboard)
         {
             // populate circular beatmap set info <-> beatmap info references manually.
             // several places like `Save()` or `GetWorkingBeatmap()`
@@ -518,6 +526,11 @@ namespace osu.Game.Beatmaps
         public Task ExportLegacy(BeatmapSetInfo beatmapSet) => legacyBeatmapExporter.ExportAsync(beatmapSet.ToLive(Realm));
 
         public Task ExportLegacy(BeatmapInfo beatmap) => legacyBeatmapExporter.ExportAsync(beatmap.ToLive(Realm));
+
+        /// <summary>
+        /// Updates the hash of a set whose files have been changed within an ongoing realm transaction, and marks it as locally modified.
+        /// </summary>
+        public void UpdateHashAndMarkDirty(BeatmapSetInfo setInfo) => updateHashAndMarkDirty(setInfo);
 
         private void updateHashAndMarkDirty(BeatmapSetInfo setInfo)
         {

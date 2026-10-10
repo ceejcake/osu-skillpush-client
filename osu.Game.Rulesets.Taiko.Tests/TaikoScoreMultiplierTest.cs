@@ -24,7 +24,7 @@ namespace osu.Game.Rulesets.Taiko.Tests
             #region Difficulty Reduction
 
             [new Mod[] { new TaikoModEasy() }, 0.5],
-            [new Mod[] { new TaikoModNoFail() }, 0.5],
+            [new Mod[] { new TaikoModNoFail() }, 1.0],
 
             [new Mod[] { new TaikoModHalfTime { SpeedChange = { Value = 0.50 } } }, 0.1],
             [new Mod[] { new TaikoModHalfTime { SpeedChange = { Value = 0.55 } } }, 0.1],
@@ -116,7 +116,7 @@ namespace osu.Game.Rulesets.Taiko.Tests
             #region Conversion
 
             [new Mod[] { new TaikoModRandom() }, 1],
-            [new Mod[] { new TaikoModDifficultyAdjust() }, 0.5],
+            [new Mod[] { new TaikoModDifficultyAdjust() }, 1.0],
             [new Mod[] { new TaikoModClassic() }, 1],
             [new Mod[] { new TaikoModSwap() }, 1],
             [new Mod[] { new TaikoModSingleTap() }, 1],

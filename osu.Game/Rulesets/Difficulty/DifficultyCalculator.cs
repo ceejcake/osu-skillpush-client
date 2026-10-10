@@ -171,6 +171,84 @@ namespace osu.Game.Rulesets.Difficulty
         }
 
         /// <summary>
+        /// Calculates how difficult the beatmap is over time, for display purposes.
+        /// </summary>
+        /// <remarks>
+        /// Difficulty is sampled in fixed length sections, normalised to the range [0, 1] over the beatmap, and combined
+        /// across skills by taking the highest normalised value of any skill in each section.
+        /// </remarks>
+        /// <param name="mods">The mods that should be applied to the beatmap.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>The difficulty of each section of the beatmap, in beatmap time.</returns>
+        public List<StrainSection> CalculateStrainSections([NotNull] IEnumerable<Mod> mods, CancellationToken cancellationToken = default)
+        {
+            const int section_length = 400;
+
+            cancellationToken.ThrowIfCancellationRequested();
+            // ReSharper disable once PossiblyMistakenUseOfCancellationToken
+            preProcess(mods, cancellationToken);
+
+            var sections = new List<StrainSection>();
+
+            if (!Beatmap.HitObjects.Any())
+                return sections;
+
+            var skills = CreateSkills(Beatmap, playableMods);
+            var objectTimes = new List<double>();
+
+            double clockRate = 1;
+
+            foreach (var hitObject in getDifficultyHitObjects())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                objectTimes.Add(hitObject.StartTime);
+                clockRate = hitObject.ClockRate;
+
+                foreach (var skill in skills)
+                    skill.Process(hitObject);
+            }
+
+            if (objectTimes.Count == 0)
+                return sections;
+
+            // Skills measure difficulty on their own scales, so each is normalised against its own peak before being combined.
+            double[][] difficulties = skills
+                                      .Select(skill => skill.GetObjectDifficulties())
+                                      .Where(objectDifficulties => objectDifficulties.Count == objectTimes.Count && objectDifficulties.Max() > 0)
+                                      .Select(objectDifficulties =>
+                                      {
+                                          double maximum = objectDifficulties.Max();
+                                          return objectDifficulties.Select(difficulty => difficulty / maximum).ToArray();
+                                      })
+                                      .ToArray();
+
+            if (difficulties.Length == 0)
+                return sections;
+
+            double firstTime = objectTimes[0];
+            int sectionCount = (int)((objectTimes[^1] - firstTime) / section_length) + 1;
+
+            double[] peaks = new double[sectionCount];
+
+            for (int i = 0; i < objectTimes.Count; i++)
+            {
+                int section = (int)((objectTimes[i] - firstTime) / section_length);
+
+                foreach (double[] objectDifficulties in difficulties)
+                    peaks[section] = Math.Max(peaks[section], objectDifficulties[i]);
+            }
+
+            for (int i = 0; i < sectionCount; i++)
+            {
+                // Difficulty is calculated in rate adjusted time, while the gameplay clock runs in beatmap time.
+                sections.Add(new StrainSection((firstTime + i * section_length) * clockRate, peaks[i]));
+            }
+
+            return sections;
+        }
+
+        /// <summary>
         /// Retrieves the <see cref="DifficultyHitObject"/>s to calculate against.
         /// </summary>
         private IEnumerable<DifficultyHitObject> getDifficultyHitObjects() => SortObjects(CreateDifficultyHitObjects(Beatmap, playableMods));

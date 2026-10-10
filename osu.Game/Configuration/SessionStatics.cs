@@ -8,6 +8,7 @@ using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
 using osu.Game.Overlays.Mods;
 using osu.Game.Scoring;
+using osu.Game.Screens.Play;
 using osu.Game.Screens.Play.HUD;
 using osu.Game.Skinning;
 using osu.Game.Users;
@@ -34,6 +35,7 @@ namespace osu.Game.Configuration
             SetDefault<ScoreInfo?>(Static.LastAppliedOffsetScore, null);
             SetDefault<UserActivity?>(Static.UserOnlineActivity, null);
             SetDefault<APITag[]?>(Static.AllBeatmapTags, null);
+            SetDefault<PracticeCheckpoint?>(Static.PracticeCheckpoint, null);
         }
 
         /// <summary>
@@ -109,5 +111,10 @@ namespace osu.Game.Configuration
         UserOnlineActivity,
 
         AllBeatmapTags,
+
+        /// <summary>
+        /// The point gameplay should restart from while practising a section of a beatmap.
+        /// </summary>
+        PracticeCheckpoint,
     }
 }

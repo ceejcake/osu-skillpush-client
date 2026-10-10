@@ -350,6 +350,9 @@ namespace osu.Game.Screens.OnlinePlay.Matchmaking.Match.BeatmapSelect
                 foreach (var mod in mods.OfType<IApplicableToDifficulty>())
                     mod.ApplyToDifficulty(adjustedDifficulty);
 
+                foreach (var mod in mods.OfType<IApplicableToDifficultyWithMods>())
+                    mod.ApplyToDifficulty(mods, adjustedDifficulty);
+
                 switch (beatmap.Ruleset.OnlineID)
                 {
                     default:

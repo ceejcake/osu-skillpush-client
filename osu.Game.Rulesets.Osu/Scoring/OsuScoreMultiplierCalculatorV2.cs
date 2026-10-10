@@ -17,7 +17,7 @@ namespace osu.Game.Rulesets.Osu.Scoring
             #region Difficulty Reduction
 
             Single<OsuModEasy>(hasMultiplier: easyMultiplier);
-            Single<OsuModNoFail>(hasMultiplier: 0.5);
+            // No Fail (1.0x)
             Single<OsuModHalfTime>(hasMultiplier: halfTime => halfTimeMultiplier(halfTime.SpeedChange.Value));
             Single<OsuModDaycore>(hasMultiplier: daycore => halfTimeMultiplier(daycore.SpeedChange.Value));
 
@@ -58,9 +58,10 @@ namespace osu.Game.Rulesets.Osu.Scoring
             #region Conversion
 
             Single<OsuModTargetPractice>(hasMultiplier: 0.01);
-            Single<OsuModDifficultyAdjust>(hasMultiplier: difficultyAdjust => difficultyAdjustMultiplier(difficultyAdjust, Context.BeatmapDifficultyWithoutMods));
+            // Difficulty Adjust (1.0x)
             Single<OsuModClassic>(hasMultiplier: classic => classic.ClassicNoteLock.Value ? 0.985 : 0.96);
             Single<OsuModRandom>(hasMultiplier: 0.7);
+            // Cross Screen (1.0x)
             // Mirror (1.0x)
             // Alternate (1.0x)
             // Single Tap (1.0x)
@@ -160,27 +161,6 @@ namespace osu.Game.Rulesets.Osu.Scoring
                 value = 1 + (value - 1) / 5;
 
             return value;
-        }
-
-        private static double difficultyAdjustMultiplier(OsuModDifficultyAdjust difficultyAdjust, IBeatmapDifficultyInfo beatmapDifficulty)
-        {
-            double selectedCircleSize = difficultyAdjust.CircleSize.Value ?? beatmapDifficulty.CircleSize;
-            double selectedDrainRate = difficultyAdjust.DrainRate.Value ?? beatmapDifficulty.DrainRate;
-            double selectedOverallDifficulty = difficultyAdjust.OverallDifficulty.Value ?? beatmapDifficulty.OverallDifficulty;
-            double selectedApproachRate = difficultyAdjust.ApproachRate.Value ?? beatmapDifficulty.ApproachRate;
-
-            double csDifference = Math.Abs(selectedCircleSize - beatmapDifficulty.CircleSize);
-            double hpDifference = Math.Abs(selectedDrainRate - beatmapDifficulty.DrainRate);
-            double odDifference = Math.Abs(selectedOverallDifficulty - beatmapDifficulty.OverallDifficulty);
-            double arDifference = Math.Abs(selectedApproachRate - beatmapDifficulty.ApproachRate);
-
-            // Per parameter, reduce multiplier by 0.05x per 0.1 change.
-            double csMultiplier = Math.Max(0.1, 1.0 - csDifference * 0.5);
-            double hpMultiplier = Math.Max(0.1, 1.0 - hpDifference * 0.5);
-            double odMultiplier = Math.Max(0.1, 1.0 - odDifference * 0.5);
-            double arMultiplier = Math.Max(0.1, 1.0 - arDifference * 0.5);
-
-            return Math.Max(0.1, csMultiplier * hpMultiplier * odMultiplier * arMultiplier);
         }
 
         private static double timeRampMultiplier(ModTimeRamp timeRamp)

@@ -37,6 +37,15 @@ namespace osu.Game.Overlays.Settings.Sections.Gameplay
                 }),
                 new SettingsItemV2(new FormCheckBox
                 {
+                    Caption = GameplaySettingsStrings.HitErrorJudgements,
+                    HintText = GameplaySettingsStrings.HitErrorJudgementsDescription,
+                    Current = config.GetBindable<bool>(OsuSetting.HitErrorJudgements)
+                })
+                {
+                    Keywords = new[] { "unstable rate", "timing", "ms", "early", "late" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
                     Caption = GameplaySettingsStrings.StarFountains,
                     Current = config.GetBindable<bool>(OsuSetting.StarFountains)
                 }),

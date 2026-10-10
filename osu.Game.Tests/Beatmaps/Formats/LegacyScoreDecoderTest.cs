@@ -662,7 +662,7 @@ namespace osu.Game.Tests.Beatmaps.Formats
             Assert.Multiple(() =>
             {
                 Assert.That(decodedAfterEncode.ScoreInfo.TotalScoreWithoutMods, Is.EqualTo(1_000_000));
-                Assert.That(decodedAfterEncode.ScoreInfo.TotalScore, Is.EqualTo(750_000));
+                Assert.That(decodedAfterEncode.ScoreInfo.TotalScore, Is.EqualTo(1_000_000));
             });
         }
 

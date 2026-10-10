@@ -159,6 +159,7 @@ namespace osu.Game.Tests.Visual.Online
                 var difficultyAdjustMod = ruleset.CreateMod<OsuModDifficultyAdjust>().AsNonNull();
                 var originalDifficulty = advancedStats.BeatmapInfo.Difficulty;
 
+                difficultyAdjustMod.AdjustDrainRate.Value = true;
                 difficultyAdjustMod.DrainRate.Value = originalDifficulty.DrainRate - 0.5f;
                 difficultyAdjustMod.ApproachRate.Value = originalDifficulty.ApproachRate + 2.2f;
                 advancedStats.Mods.Value = new[] { difficultyAdjustMod };

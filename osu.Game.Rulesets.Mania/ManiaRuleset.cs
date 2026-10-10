@@ -43,6 +43,7 @@ using osu.Game.Screens.Edit.Setup;
 using osu.Game.Screens.Ranking.Statistics;
 using osu.Game.Skinning;
 using osuTK;
+using osu.Game.Utils;
 
 namespace osu.Game.Rulesets.Mania
 {
@@ -450,6 +451,9 @@ namespace osu.Game.Rulesets.Mania
         /// <seealso cref="ManiaHitWindows"/>
         public override BeatmapDifficulty GetAdjustedDisplayDifficulty(IBeatmapInfo beatmapInfo, IReadOnlyCollection<Mod> mods)
         {
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            mods = ModUtils.WithBpmLockApplied(mods, beatmapInfo.BPM);
+
             BeatmapDifficulty adjustedDifficulty = base.GetAdjustedDisplayDifficulty(beatmapInfo, mods);
 
             // notably, in mania, hit windows are designed to be independent of track playback rate (see `ManiaHitWindows.SpeedMultiplier`).
@@ -476,6 +480,9 @@ namespace osu.Game.Rulesets.Mania
 
         public override IEnumerable<RulesetBeatmapAttribute> GetBeatmapAttributesForDisplay(IBeatmapInfo beatmapInfo, IReadOnlyCollection<Mod> mods)
         {
+            // A bpm lock gives each beatmap a rate of its own, which the mods only report once settled on this one.
+            mods = ModUtils.WithBpmLockApplied(mods, beatmapInfo.BPM);
+
             // a special touch-up of key count is required to the original difficulty, since key conversion mods are not `IApplicableToDifficulty`
             var originalDifficulty = new BeatmapDifficulty(beatmapInfo.Difficulty)
             {
