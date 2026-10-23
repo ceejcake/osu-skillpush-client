@@ -566,7 +566,7 @@ namespace osu.Game.Configuration
         ScoreV2ByDefault,
 
         /// <summary>
-        /// Whether the sides of the screen glow when objects are missed because of aim: red when lagging behind, blue when going too fast.
+        /// Whether the sides of the screen glow when objects are missed because of aim: red when lagging behind, blue when ahead.
         /// </summary>
         AimFeedbackGlow,
     }

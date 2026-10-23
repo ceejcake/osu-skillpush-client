@@ -150,25 +150,58 @@ namespace osu.Game.Rulesets.Osu.Tests
         }
 
         /// <summary>
-        /// The cursor travels right from a first circle to a second one at the middle of the playfield, and stays where given
-        /// without pressing. Being left of the second circle is lagging behind, right of it is going past it.
+        /// The cursor travels right from a first circle to a second one at the middle of the playfield, but only reaches it
+        /// well after it should have been hit.
         /// </summary>
-        [TestCase(200, 192, AimError.Behind)]
-        [TestCase(320, 192, AimError.Ahead)]
-        public void TestMissFromAimIsClassified(float cursorX, float cursorY, AimError expected)
+        [Test]
+        public void TestReachingCircleLateIsBehind()
         {
             aimTest(new[]
             {
-                new OsuReplayFrame { Time = time_circle - 200, Position = new Vector2(cursorX, cursorY) },
-                new OsuReplayFrame { Time = time_circle + 400, Position = new Vector2(cursorX, cursorY) },
+                new OsuReplayFrame { Time = time_circle, Position = new Vector2(180, 192) },
+                new OsuReplayFrame { Time = time_circle + 140, Position = position_circle },
+                new OsuReplayFrame { Time = time_circle + 400, Position = position_circle },
             });
 
-            AddAssert("miss classified", () => aimMisses, () => Is.EqualTo(new[] { expected }));
+            AddAssert("miss classified", () => aimMisses, () => Is.EqualTo(new[] { AimError.Behind }));
         }
 
-        [TestCase(256, 300, TestName = "TestMissMostlySidewaysIsNotClassified")]
+        /// <summary>
+        /// The cursor reaches the second circle early and moves on from it (whichever way) before it should have been hit.
+        /// </summary>
+        [TestCase(400, 192)]
+        [TestCase(256, 50)]
+        public void TestLeavingCircleEarlyIsAhead(float nextX, float nextY)
+        {
+            aimTest(new[]
+            {
+                new OsuReplayFrame { Time = time_circle - 150, Position = position_circle },
+                new OsuReplayFrame { Time = time_circle - 50, Position = new Vector2(nextX, nextY) },
+                new OsuReplayFrame { Time = time_circle + 400, Position = new Vector2(nextX, nextY) },
+            });
+
+            AddAssert("miss classified", () => aimMisses, () => Is.EqualTo(new[] { AimError.Ahead }));
+        }
+
+        [Test]
+        public void TestOvershootingOnTimeIsNotClassified()
+        {
+            // Passes over the circle just before pressing, and presses past it.
+            aimTest(new[]
+            {
+                new OsuReplayFrame { Time = time_circle - 50, Position = new Vector2(200, 192) },
+                new OsuReplayFrame { Time = time_circle, Position = new Vector2(340, 192), Actions = { OsuAction.LeftButton } },
+                new OsuReplayFrame { Time = time_circle + 10, Position = new Vector2(340, 192) },
+                new OsuReplayFrame { Time = time_circle + 400, Position = new Vector2(340, 192) },
+            });
+
+            AddAssert("misaimed press reported", () => misaimedPresses, () => Has.Count.EqualTo(1));
+            AddAssert("not classified", () => aimMisses, () => Is.Empty);
+        }
+
+        [TestCase(256, 300, TestName = "TestMissAimingElsewhereIsNotClassified")]
         [TestCase(260, 195, TestName = "TestMissWithCursorOnCircleIsNotClassified")]
-        public void TestMissNotCausedByLagOrOveraim(float cursorX, float cursorY)
+        public void TestMissNotCausedByLagOrLead(float cursorX, float cursorY)
         {
             aimTest(new[]
             {
@@ -183,11 +216,12 @@ namespace osu.Game.Rulesets.Osu.Tests
         [Test]
         public void TestMisaimedPressDecidesClassification()
         {
-            // Pressed short of the circle, then carried on past it before the circle was missed. The press is what counts.
+            // Pressed early while short of the circle, and only got there at about the time of the circle. The press is what counts.
             aimTest(new[]
             {
-                new OsuReplayFrame { Time = time_circle, Position = new Vector2(200, 192), Actions = { OsuAction.LeftButton } },
-                new OsuReplayFrame { Time = time_circle + 10, Position = new Vector2(200, 192) },
+                new OsuReplayFrame { Time = time_circle - 60, Position = new Vector2(200, 192), Actions = { OsuAction.LeftButton } },
+                new OsuReplayFrame { Time = time_circle - 50, Position = new Vector2(200, 192) },
+                new OsuReplayFrame { Time = time_circle, Position = new Vector2(200, 192) },
                 new OsuReplayFrame { Time = time_circle + 60, Position = new Vector2(340, 192) },
                 new OsuReplayFrame { Time = time_circle + 400, Position = new Vector2(340, 192) },
             });
@@ -234,10 +268,24 @@ namespace osu.Game.Rulesets.Osu.Tests
         {
             var circle = new Vector2(256, 192);
 
-            AddAssert("short is behind", () => AimMissDetector.Classify(circle, 30, new Vector2(200, 192), Vector2.UnitX), () => Is.EqualTo(AimError.Behind));
-            AddAssert("past is ahead", () => AimMissDetector.Classify(circle, 30, new Vector2(300, 200), Vector2.UnitX), () => Is.EqualTo(AimError.Ahead));
-            AddAssert("on the circle is neither", () => AimMissDetector.Classify(circle, 30, new Vector2(270, 192), Vector2.UnitX), () => Is.Null);
-            AddAssert("sideways is neither", () => AimMissDetector.Classify(circle, 30, new Vector2(266, 280), Vector2.UnitX), () => Is.Null);
+            AimError? classify((double time, Vector2 position)[] path) => AimMissDetector.Classify(path, circle, 30, 0, 30);
+
+            AddAssert("overshooting on time is neither", () => classify(linearPath(new Vector2(100, 192), -100, new Vector2(356, 192), 20)), () => Is.Null);
+            AddAssert("arriving late is behind", () => classify(linearPath(new Vector2(100, 192), -100, new Vector2(256, 192), 100)), () => Is.EqualTo(AimError.Behind));
+            AddAssert("leaving early is ahead", () => classify(linearPath(new Vector2(256, 192), -150, new Vector2(456, 192), 50)), () => Is.EqualTo(AimError.Ahead));
+            AddAssert("leaving early backwards is ahead", () => classify(linearPath(new Vector2(256, 192), -150, new Vector2(56, 192), 50)), () => Is.EqualTo(AimError.Ahead));
+            AddAssert("still on its way is behind", () => classify(linearPath(new Vector2(0, 192), -100, new Vector2(150, 192), 100)), () => Is.EqualTo(AimError.Behind));
+            AddAssert("aiming elsewhere is neither", () => classify(linearPath(new Vector2(256, 400), -100, new Vector2(500, 400), 100)), () => Is.Null);
+        }
+
+        private static (double time, Vector2 position)[] linearPath(Vector2 from, double fromTime, Vector2 to, double toTime)
+        {
+            const double interval = 5;
+
+            return Enumerable.Range(0, (int)((toTime - fromTime) / interval) + 1)
+                             .Select(i => i * interval / (toTime - fromTime))
+                             .Select(p => (fromTime + p * (toTime - fromTime), Vector2.Lerp(from, to, (float)p)))
+                             .ToArray();
         }
 
         [Test]

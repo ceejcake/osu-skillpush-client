@@ -96,7 +96,7 @@ namespace osu.Game.Overlays.Settings.Sections.Gameplay
                 new SettingsItemV2(new FormCheckBox
                 {
                     Caption = "Glow when aim causes misses",
-                    HintText = "Make the sides of the screen glow when you start missing because of aim: red when your aim is lagging behind, blue when it's going too fast. The more misses in a row, the stronger the glow.",
+                    HintText = "Make the sides of the screen glow when you start missing because of aim: red when your cursor gets to circles too late, blue when it has already left them by the time you click. Overshooting a circle at the right time doesn't count. The more misses in a row, the stronger the glow.",
                     Current = config.GetBindable<bool>(OsuSetting.AimFeedbackGlow),
                 })
                 {

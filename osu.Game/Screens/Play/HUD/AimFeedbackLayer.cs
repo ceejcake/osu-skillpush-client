@@ -20,7 +20,7 @@ namespace osu.Game.Screens.Play.HUD
 {
     /// <summary>
     /// Makes the sides of the screen glow when objects are being missed because of aim, in the same way as <see cref="FailingLayer"/>
-    /// does for low health: red when the aim is lagging behind the objects, and blue when it is going past them.
+    /// does for low health: red when the aim is lagging behind the objects, and blue when it has already moved on from them.
     /// </summary>
     /// <remarks>
     /// Each miss adds to the glow of its colour, which fades away over time. A single miss is a faint pulse, and the glow only
@@ -54,7 +54,7 @@ namespace osu.Game.Screens.Play.HUD
         public float BehindStrength { get; private set; }
 
         /// <summary>
-        /// How strong the glow for going too fast is, from 0 to 1 (before fading).
+        /// How strong the glow for being ahead is, from 0 to 1 (before fading).
         /// </summary>
         public float AheadStrength { get; private set; }
 

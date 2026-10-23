@@ -9,12 +9,12 @@ namespace osu.Game.Rulesets.UI
     public enum AimError
     {
         /// <summary>
-        /// The cursor hadn't reached the object yet: the aim was lagging behind.
+        /// The cursor reached the object too late: the aim was lagging behind.
         /// </summary>
         Behind,
 
         /// <summary>
-        /// The cursor had gone past the object: the aim was moving too fast.
+        /// The cursor had already moved on from the object: the aim was ahead.
         /// </summary>
         Ahead,
     }

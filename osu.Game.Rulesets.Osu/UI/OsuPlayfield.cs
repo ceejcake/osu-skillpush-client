@@ -60,7 +60,7 @@ namespace osu.Game.Rulesets.Osu.UI
         public readonly MisaimIndicatorLayer MisaimIndicators;
 
         /// <summary>
-        /// Works out whether missed circles were missed because the aim was lagging behind or going past them.
+        /// Works out whether missed circles were missed because the aim was lagging behind them or had already moved on from them.
         /// </summary>
         public readonly AimMissDetector AimMisses;
 
@@ -88,7 +88,7 @@ namespace osu.Game.Rulesets.Osu.UI
                 MisaimIndicators = new MisaimIndicatorLayer(),
             };
 
-            AddInternal(AimMisses = new AimMissDetector(MisaimIndicators.GetApproachDirection, MisaimIndicators.ToLocalSpace));
+            AddInternal(AimMisses = new AimMissDetector(MisaimIndicators.GetPreviousObject, MisaimIndicators.ToLocalSpace));
 
             HitPolicy = new StartTimeOrderedHitPolicy();
 
@@ -290,7 +290,7 @@ namespace osu.Game.Rulesets.Osu.UI
                 {
                     playfield.TriggerMisaimedPress(circle.HitObject, offset);
                     playfield.MisaimIndicators.ShowMisaim(circle.HitObject, e.ScreenSpaceMousePosition);
-                    playfield.AimMisses.AddMisaimedPress(circle.HitObject, e.ScreenSpaceMousePosition);
+                    playfield.AimMisses.AddMisaimedPress(circle.HitObject);
                 }
 
                 // Never handled, so as to not interfere with anything else.

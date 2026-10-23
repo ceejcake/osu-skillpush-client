@@ -74,13 +74,20 @@ namespace osu.Game.Rulesets.Osu.UI
         }
 
         /// <summary>
+        /// The object which has to be played before a circle, or null if it is the first.
+        /// </summary>
+        /// <remarks>
+        /// Slider heads share their start time with the slider, so for a slider head this is the object before the slider.
+        /// </remarks>
+        public OsuHitObject? GetPreviousObject(OsuHitObject circle) => objects.LastOrDefault(h => h.StartTime < circle.StartTime);
+
+        /// <summary>
         /// The direction the cursor was travelling to reach a circle: from where the previous object ended, towards the circle.
         /// </summary>
         /// <returns>The normalised direction, or null if it isn't known (e.g. for the first object, or one stacked on the previous).</returns>
         public Vector2? GetApproachDirection(OsuHitObject circle)
         {
-            // Slider heads share their start time with the slider, so this finds the object before the slider.
-            var previous = objects.LastOrDefault(h => h.StartTime < circle.StartTime);
+            var previous = GetPreviousObject(circle);
 
             if (previous == null)
                 return null;

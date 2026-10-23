@@ -8,45 +8,48 @@ using osu.Framework.Graphics;
 using osu.Framework.Input;
 using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Osu.Objects;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.UI;
 using osuTK;
 
 namespace osu.Game.Rulesets.Osu.UI
 {
     /// <summary>
-    /// Works out whether a missed circle was missed because the aim was lagging behind it or going past it.
+    /// Works out whether a missed circle was missed because the aim was lagging behind it or had already moved on from it.
     /// </summary>
     /// <remarks>
-    /// The cursor position used is where a misaimed press landed if there was one, and otherwise where the cursor was at the
-    /// moment the circle should have been hit. It is judged along the direction the cursor was travelling to reach the circle.
+    /// This is about timing rather than position: it looks at when the cursor was on the circle, compared to when the circle was
+    /// pressed for (or should have been, if it wasn't). Where the cursor was relative to the circle doesn't matter, so overshooting
+    /// a circle at the right time isn't mistaken for being ahead, and moving on towards the next object early is, whichever way
+    /// that object is.
     /// </remarks>
     public partial class AimMissDetector : Component
     {
         /// <summary>
-        /// How much further along the direction of travel than sideways the cursor has to be off, for a miss to count as lagging
-        /// behind or going past. A miss which is mostly sideways is neither.
+        /// How close (in circle radii from its centre) the cursor has to come to a circle it never touched for when it came closest
+        /// to count. Any further away and it was aiming somewhere else entirely.
         /// </summary>
-        private const float minimum_along_share = 0.75f;
+        private const float near_distance = 2;
 
         /// <summary>
         /// How long the cursor's path is remembered for.
         /// </summary>
         private const double history_length = 3000;
 
-        private readonly Func<OsuHitObject, Vector2?> getApproachDirection;
+        private readonly Func<OsuHitObject, OsuHitObject?> getPreviousObject;
         private readonly Func<Vector2, Vector2> toPlayfieldSpace;
 
         private readonly List<(double time, Vector2 position)> cursorHistory = new List<(double, Vector2)>();
 
-        private readonly Dictionary<HitObject, Vector2> misaimedPresses = new Dictionary<HitObject, Vector2>();
+        private readonly Dictionary<HitObject, double> misaimedPresses = new Dictionary<HitObject, double>();
 
         private InputManager? inputManager;
 
-        /// <param name="getApproachDirection">Gets the direction the cursor travels in to reach a circle, if known.</param>
+        /// <param name="getPreviousObject">Gets the object which has to be played before a circle, if there is one.</param>
         /// <param name="toPlayfieldSpace">Converts a screen space position to playfield coordinates.</param>
-        public AimMissDetector(Func<OsuHitObject, Vector2?> getApproachDirection, Func<Vector2, Vector2> toPlayfieldSpace)
+        public AimMissDetector(Func<OsuHitObject, OsuHitObject?> getPreviousObject, Func<Vector2, Vector2> toPlayfieldSpace)
         {
-            this.getApproachDirection = getApproachDirection;
+            this.getPreviousObject = getPreviousObject;
             this.toPlayfieldSpace = toPlayfieldSpace;
         }
 
@@ -81,51 +84,84 @@ namespace osu.Game.Rulesets.Osu.UI
         }
 
         /// <summary>
-        /// Remembers where a press which missed a circle landed, which is a better guess at where the player was aiming than
-        /// wherever the cursor happens to be when the circle is eventually missed.
+        /// Remembers when a press which missed a circle happened, which is when the player meant to hit it.
         /// </summary>
-        public void AddMisaimedPress(HitObject hitObject, Vector2 screenSpacePosition) => misaimedPresses.TryAdd(hitObject, toPlayfieldSpace(screenSpacePosition));
+        public void AddMisaimedPress(HitObject hitObject) => misaimedPresses.TryAdd(hitObject, Time.Current);
 
         /// <summary>
         /// Works out why a circle was missed.
         /// </summary>
-        /// <returns>Which way the aim was off, or null if the miss wasn't because of aim lagging behind or going past.</returns>
+        /// <returns>Which way the aim was off, or null if the miss wasn't because of aim lagging behind or being ahead.</returns>
         public AimError? Classify(OsuHitObject circle)
         {
-            Vector2? position = misaimedPresses.Remove(circle, out var pressPosition) ? pressPosition : cursorPositionAt(circle.StartTime);
+            double targetTime = misaimedPresses.Remove(circle, out double pressTime) ? pressTime : circle.StartTime;
 
-            if (position == null || getApproachDirection(circle) is not Vector2 direction)
+            // Missed by pressing too early, which is down to tapping rather than aim.
+            if (Time.Current < circle.StartTime)
                 return null;
 
-            return Classify(circle.StackedPosition, (float)circle.Radius, position.Value, direction);
+            // Only the path since the previous object, so that passing over this circle on the way to an earlier one doesn't count.
+            double from = getPreviousObject(circle)?.GetEndTime() ?? double.MinValue;
+            var path = cursorHistory.Where(h => h.time >= from).ToArray();
+
+            double tolerance = circle.HitWindows?.WindowFor(HitResult.Great) ?? 0;
+
+            return Classify(path, circle.StackedPosition, (float)circle.Radius, targetTime, tolerance);
         }
 
         /// <summary>
-        /// Works out which way the cursor was off a circle, along the direction it was travelling.
+        /// Works out whether the cursor reached a circle too late or had already left it, from the path it took.
         /// </summary>
-        /// <returns>Which way the aim was off, or null if the cursor was on the circle or mostly off to the side of it.</returns>
-        public static AimError? Classify(Vector2 circlePosition, float radius, Vector2 cursorPosition, Vector2 direction)
+        /// <param name="path">Where the cursor was over time, in order.</param>
+        /// <param name="circlePosition">Where the circle is.</param>
+        /// <param name="radius">The radius of the circle.</param>
+        /// <param name="targetTime">When the circle was pressed for, or should have been.</param>
+        /// <param name="tolerance">How far off (in milliseconds) the cursor can be and still count as on time.</param>
+        /// <returns>Which way the aim was off, or null if it was on time (so the miss was just off target) or nowhere near the circle.</returns>
+        public static AimError? Classify(IReadOnlyList<(double time, Vector2 position)> path, Vector2 circlePosition, float radius, double targetTime, double tolerance)
         {
-            Vector2 offset = cursorPosition - circlePosition;
-
-            if (offset.Length <= radius)
+            if (path.Count == 0)
                 return null;
 
-            float along = Vector2.Dot(offset, direction);
-            float sideways = Math.Abs(offset.X * direction.Y - offset.Y * direction.X);
+            float[] distances = path.Select(p => Vector2.Distance(p.position, circlePosition)).ToArray();
+            float closestDistance = distances.Min();
 
-            if (Math.Abs(along) < sideways * minimum_along_share)
+            if (closestDistance > radius * near_distance)
+            {
+                // Still on its way there when the circle was missed, or aiming somewhere else entirely.
+                return isApproaching(path, distances) ? AimError.Behind : null;
+            }
+
+            // When the cursor was on the circle, or if it never was, when it came closest (which can be for a while if it stopped short).
+            float onTargetDistance = closestDistance <= radius ? radius : closestDistance + 1;
+
+            // Of those times, the one closest to when the circle should have been hit.
+            double onTargetTime = path.Where((_, i) => distances[i] <= onTargetDistance)
+                                      .Select(p => p.time)
+                                      .MinBy(t => Math.Abs(t - targetTime));
+
+            double offset = onTargetTime - targetTime;
+
+            if (Math.Abs(offset) <= tolerance)
                 return null;
 
-            return along < 0 ? AimError.Behind : AimError.Ahead;
+            return offset > 0 ? AimError.Behind : AimError.Ahead;
         }
 
-        private Vector2? cursorPositionAt(double time)
+        /// <summary>
+        /// Whether the cursor was still getting closer to the circle at the end of the path.
+        /// </summary>
+        private static bool isApproaching(IReadOnlyList<(double time, Vector2 position)> path, float[] distances)
         {
-            if (cursorHistory.Count == 0)
-                return null;
+            const double approach_check_duration = 50;
 
-            return cursorHistory.MinBy(h => Math.Abs(h.time - time)).position;
+            int last = path.Count - 1;
+            int earlier = last;
+
+            while (earlier > 0 && path[earlier].time > path[last].time - approach_check_duration)
+                earlier--;
+
+            return distances[last] < distances[earlier] - 1;
         }
     }
 }

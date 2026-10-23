@@ -56,7 +56,7 @@ namespace osu.Game.Rulesets.UI
         protected void TriggerMisaimedPress(HitObject hitObject, double timeOffset) => MisaimedPress?.Invoke(hitObject, timeOffset);
 
         /// <summary>
-        /// Invoked when an object was missed because the aim was lagging behind it or going past it.
+        /// Invoked when an object was missed because the aim was lagging behind it or had already moved on from it.
         /// </summary>
         public event Action<HitObject, AimError> AimMiss;
 
