@@ -63,6 +63,7 @@ using osu.Game.Overlays.Settings.Sections.Input;
 using osu.Game.Resources;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Scoring;
 using osu.Game.Scoring;
 using osu.Game.Skinning;
 using osu.Game.Users;
@@ -449,6 +450,9 @@ namespace osu.Game
             Ruleset.BindValueChanged(onRulesetChanged);
             Beatmap.BindValueChanged(onBeatmapChanged);
 
+            LocalConfig.BindWith(OsuSetting.ScoreV2ByDefault, ScoringFormulaDefaults.ScoreV2ByDefault);
+            ScoringFormulaDefaults.ScoreV2ByDefault.BindValueChanged(_ => onScoringDefaultChanged());
+
             // make config aware of how to lookup skins for on-screen display purposes.
             // if this becomes a more common thing, tracked settings should be reconsidered to allow local DI.
             LocalConfig.LookupSkinName = id => SkinManager.Query(s => s.ID == id)?.ToString() ?? "Unknown";
@@ -705,6 +709,25 @@ namespace osu.Game
                 throw new InvalidOperationException("Global beatmap bindable must be changed from update thread.");
 
             Logger.Log($"Game-wide working beatmap updated to {beatmap.NewValue}");
+        }
+
+        /// <summary>
+        /// Which of the Score V2 and Lazer Scoring mods can be selected depends on which scoring is the default,
+        /// so the mod lists are refreshed, and whichever of the two is selected but no longer makes sense is dropped.
+        /// </summary>
+        private void onScoringDefaultChanged()
+        {
+            // A new dictionary, so that everything bound to the available mods (such as the mod select overlay) is told.
+            // The mods themselves are kept, as which of them can be selected is read from them live.
+            AvailableMods.Value = AvailableMods.Value.ToDictionary(pair => pair.Key, pair => pair.Value);
+
+            if (SelectedMods.Disabled)
+                return;
+
+            bool affectsScoring(Mod mod) => mod is IScoringFormula || mod is IStandardScoringFormula;
+
+            if (SelectedMods.Value.Any(mod => affectsScoring(mod) && !mod.UserPlayable))
+                SelectedMods.Value = SelectedMods.Value.Where(mod => !affectsScoring(mod) || mod.UserPlayable).ToList();
         }
 
         private void onRulesetChanged(ValueChangedEvent<RulesetInfo> r)

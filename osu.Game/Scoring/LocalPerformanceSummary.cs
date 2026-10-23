@@ -24,6 +24,16 @@ namespace osu.Game.Scoring
         /// </summary>
         public const int MAXIMUM_DISPLAYED_PLAYS = 100;
 
+        /// <summary>
+        /// The number of plays shown in today's top plays.
+        /// </summary>
+        public const int TODAY_TOP_PLAYS = 5;
+
+        /// <summary>
+        /// The local time each day begins at, for today's top plays. Late night plays count towards the day before.
+        /// </summary>
+        public static readonly TimeSpan DAY_START_TIME = TimeSpan.FromHours(4);
+
         private const double weighting_factor = 0.95;
 
         /// <summary>
@@ -47,18 +57,68 @@ namespace osu.Game.Scoring
         public IReadOnlyList<LocalTopPlay> TopPlays { get; }
 
         /// <summary>
+        /// The best scores set since the start of the day (see <see cref="GetDayStart"/>) when this summary was worked out, highest performance first.
+        /// Use <see cref="GetTodayTopPlays"/> to exclude any from before the start of the current day.
+        /// </summary>
+        public IReadOnlyList<LocalTopPlay> RecentTopPlays { get; }
+
+        /// <summary>
         /// The number of scores which are still waiting for their performance to be calculated.
         /// </summary>
         public int PendingScores { get; }
 
-        public LocalPerformanceSummary(double totalPerformance, double accuracy, int countedBeatmaps, IReadOnlyList<LocalTopPlay> topPlays, int pendingScores)
+        public LocalPerformanceSummary(double totalPerformance, double accuracy, int countedBeatmaps, IReadOnlyList<LocalTopPlay> topPlays, int pendingScores,
+                                       IReadOnlyList<LocalTopPlay>? recentTopPlays = null)
         {
             TotalPerformance = totalPerformance;
             Accuracy = accuracy;
             CountedBeatmaps = countedBeatmaps;
             TopPlays = topPlays;
             PendingScores = pendingScores;
+            RecentTopPlays = recentTopPlays ?? Array.Empty<LocalTopPlay>();
         }
+
+        /// <summary>
+        /// The best scores of the current day, highest performance first.
+        /// </summary>
+        /// <param name="now">The current time.</param>
+        public IReadOnlyList<LocalTopPlay> GetTodayTopPlays(DateTimeOffset now)
+        {
+            var dayStart = GetDayStart(now);
+            return RecentTopPlays.Where(p => p.Score.Date >= dayStart).Take(TODAY_TOP_PLAYS).ToArray();
+        }
+
+        /// <summary>
+        /// The start of the day which the given time is in: the most recent <see cref="DAY_START_TIME"/> (4 AM) in local time.
+        /// </summary>
+        /// <param name="now">The time.</param>
+        /// <param name="timeZone">The time zone days are counted in, or null for the local time zone.</param>
+        public static DateTimeOffset GetDayStart(DateTimeOffset now, TimeZoneInfo? timeZone = null)
+        {
+            timeZone ??= TimeZoneInfo.Local;
+
+            DateTime local = TimeZoneInfo.ConvertTime(now, timeZone).DateTime;
+            DateTime start = local.Date + DAY_START_TIME;
+
+            if (local < start)
+                start = start.AddDays(-1);
+
+            return new DateTimeOffset(start, timeZone.GetUtcOffset(start));
+        }
+
+        /// <summary>
+        /// Picks the best score on each beatmap since the start of a day.
+        /// </summary>
+        /// <param name="entries">Every eligible score.</param>
+        /// <param name="dayStart">The start of the day.</param>
+        /// <returns>The best scores of the day, highest performance first.</returns>
+        public static IReadOnlyList<PerformanceEntry> SelectTodayTopPlays(IEnumerable<PerformanceEntry> entries, DateTimeOffset dayStart) =>
+            entries.Where(e => e.Date >= dayStart)
+                   .GroupBy(e => e.BeatmapKey)
+                   .Select(g => g.MaxBy(e => e.Performance))
+                   .OrderByDescending(e => e.Performance)
+                   .Take(TODAY_TOP_PLAYS)
+                   .ToArray();
 
         /// <summary>
         /// Weights the best score on each beatmap into totals.
@@ -108,7 +168,8 @@ namespace osu.Game.Scoring
     /// <param name="BeatmapKey">Identifies the beatmap the score was set on. Only one score per beatmap is counted.</param>
     /// <param name="Performance">The performance points awarded for the score.</param>
     /// <param name="Accuracy">The accuracy of the score, from 0 to 1.</param>
-    public readonly record struct PerformanceEntry(Guid ScoreID, string BeatmapKey, double Performance, double Accuracy);
+    /// <param name="Date">When the score was set.</param>
+    public readonly record struct PerformanceEntry(Guid ScoreID, string BeatmapKey, double Performance, double Accuracy, DateTimeOffset Date = default);
 
     /// <summary>
     /// One of the local player's best scores.

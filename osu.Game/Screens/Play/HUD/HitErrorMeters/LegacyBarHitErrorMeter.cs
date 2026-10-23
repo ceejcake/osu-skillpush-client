@@ -9,9 +9,11 @@ using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Pooling;
 using osu.Framework.Graphics.Shapes;
 using osu.Game.Rulesets.Judgements;
+using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Skinning;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Screens.Play.HUD.HitErrorMeters
 {
@@ -96,7 +98,9 @@ namespace osu.Game.Screens.Play.HUD.HitErrorMeters
 
         protected override void OnNewJudgement(JudgementResult judgement)
         {
-            if (!judgement.IsHit || judgement.HitObject.HitWindows?.WindowFor(HitResult.Miss) == 0)
+            bool pressedMiss = IsShownPressedMiss(judgement);
+
+            if (!pressedMiss && (!judgement.IsHit || judgement.HitObject.HitWindows?.WindowFor(HitResult.Miss) == 0))
                 return;
 
             if (!judgement.Type.IsScorable() || judgement.Type.IsBonus())
@@ -104,16 +108,36 @@ namespace osu.Game.Screens.Play.HUD.HitErrorMeters
 
             float relativePosition = getRelativeJudgementPosition(judgement.TimeOffset);
 
-            judgementLinePool.Get(drawableJudgement =>
-            {
-                drawableJudgement.X = relativePosition;
-                drawableJudgement.Colour = GetColourForHitResult(judgement.Type);
+            addJudgementLine(relativePosition, GetColourForHitResult(judgement.Type));
 
-                judgementContainer.Add(drawableJudgement);
-            });
+            // Misses are too early to be on the meter's scale (they are shown at its edge), so would throw off the average.
+            if (pressedMiss)
+                return;
 
             floatingError = floatingError * 0.8f + relativePosition * 0.2f;
             arrow.MoveToX(floatingError, 800, Easing.Out);
+        }
+
+        /// <summary>
+        /// Shows where a press which missed its object would have landed, as a miss-coloured line.
+        /// </summary>
+        protected override void OnMisaimedPress(HitObject hitObject, double timeOffset)
+        {
+            if (hitObject.HitWindows?.WindowFor(HitResult.Miss) == 0)
+                return;
+
+            addJudgementLine(getRelativeJudgementPosition(timeOffset), GetColourForHitResult(HitResult.Miss));
+        }
+
+        private void addJudgementLine(float relativePosition, Color4 colour)
+        {
+            judgementLinePool.Get(drawableJudgement =>
+            {
+                drawableJudgement.X = relativePosition;
+                drawableJudgement.Colour = colour;
+
+                judgementContainer.Add(drawableJudgement);
+            });
         }
 
         private float getRelativeJudgementPosition(double value) => Math.Clamp((float)(value / maxHitWindow) / 2, -0.5f, 0.5f);

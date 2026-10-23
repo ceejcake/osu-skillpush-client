@@ -4,10 +4,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using osu.Framework.Allocation;
+using osu.Framework.Bindables;
 using osu.Framework.Graphics;
 using osuTK;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Input.Events;
+using osu.Game.Configuration;
 using osu.Game.Input.Bindings;
 using osu.Game.Rulesets.Mods;
 using osu.Game.Screens.Select;
@@ -26,8 +28,10 @@ namespace osu.Game.Overlays.Mods
         }
 
         [BackgroundDependencyLoader]
-        private void load()
+        private void load(OsuConfigManager config)
         {
+            musicPitch = config.GetBindable<double>(OsuSetting.MusicPitch);
+
             Add(modSpeedHotkeyHandler = new ModSpeedHotkeyHandler());
             Add(modSpacingHotkeyHandler = new ModSpacingHotkeyHandler());
         }
@@ -43,6 +47,19 @@ namespace osu.Game.Overlays.Mods
                 new MusicPitchButton(),
             }
         };
+
+        private Bindable<double> musicPitch = null!;
+
+        /// <summary>
+        /// Arrow keys change the music pitch (see <see cref="MusicPitchButton"/>) when nothing in particular is selected.
+        /// </summary>
+        protected override bool OnArrowKey(int direction)
+        {
+            musicPitch.Value += direction * pitch_step;
+            return true;
+        }
+
+        private const double pitch_step = 0.05;
 
         protected override ModColumn CreateModColumn(ModType modType) => new UserModColumn(modType, false);
 

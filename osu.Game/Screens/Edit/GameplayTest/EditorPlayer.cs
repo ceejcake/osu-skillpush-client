@@ -31,6 +31,9 @@ namespace osu.Game.Screens.Edit.GameplayTest
 
         protected override UserActivity InitialActivity => new UserActivity.TestingBeatmap(Beatmap.Value.BeatmapInfo);
 
+        // Test plays usually start part way through, and aren't practice of the beatmap.
+        protected override bool RecordsPlaythroughMisses => false;
+
         [Resolved]
         private MusicController musicController { get; set; } = null!;
 

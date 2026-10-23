@@ -84,6 +84,24 @@ namespace osu.Game.Overlays.Settings.Sections.Gameplay
                 {
                     Keywords = new[] { "hit error", "meter", "scale", "unstable rate" },
                 },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Show missed presses on hit error bar",
+                    HintText = "Show presses which didn't hit their note (because the cursor was off it, or the press was too early) on bar hit error meters as red lines, where they would have landed.",
+                    Current = config.GetBindable<bool>(OsuSetting.HitErrorShowPressedMisses),
+                })
+                {
+                    Keywords = new[] { "hit error", "meter", "miss", "unstable rate", "mcosu" },
+                },
+                new SettingsItemV2(new FormCheckBox
+                {
+                    Caption = "Glow when aim causes misses",
+                    HintText = "Make the sides of the screen glow when you start missing because of aim: red when your aim is lagging behind, blue when it's going too fast. The more misses in a row, the stronger the glow.",
+                    Current = config.GetBindable<bool>(OsuSetting.AimFeedbackGlow),
+                })
+                {
+                    Keywords = new[] { "aim", "lag", "overaim", "underaim", "glow", "feedback", "miss" },
+                },
             };
         }
     }

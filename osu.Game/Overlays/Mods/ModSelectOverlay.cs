@@ -186,7 +186,7 @@ namespace osu.Game.Overlays.Mods
                             Padding = new MarginPadding { Horizontal = 100, Bottom = 15f },
                             Children = new Drawable[]
                             {
-                                SearchTextBox = new ShearedSearchTextBox
+                                SearchTextBox = new ModSearchTextBox
                                 {
                                     HoldFocus = false,
                                     Width = 300,
@@ -379,8 +379,10 @@ namespace osu.Game.Overlays.Mods
 
         private void filterMods()
         {
+            // Mods which can never be picked by the user are left out, which (besides system mods) covers whichever of the
+            // scoring mods is pointless under the current default scoring.
             foreach (var modState in AllAvailableMods)
-                modState.ValidForSelection.Value = modState.Mod.Type != ModType.System && modState.Mod.HasImplementation && IsValidMod.Invoke(modState.Mod);
+                modState.ValidForSelection.Value = modState.Mod.Type != ModType.System && modState.Mod.HasImplementation && modState.Mod.UserPlayable && IsValidMod.Invoke(modState.Mod);
         }
 
         private void updateCustomisation()
@@ -669,6 +671,9 @@ namespace osu.Game.Overlays.Mods
 
         protected override bool OnKeyDown(KeyDownEvent e)
         {
+            if (getArrowKeyDirection(e) is int direction)
+                return canUseArrowKeys() && OnArrowKey(direction);
+
             if (e.Repeat || e.Key != Key.Tab)
                 return false;
 
@@ -678,6 +683,71 @@ namespace osu.Game.Overlays.Mods
             // TODO: should probably eventually support typical platform search shortcuts (`Ctrl-F`, `/`)
             setTextBoxFocus(!SearchTextBox.HasFocus);
             return true;
+        }
+
+        /// <summary>
+        /// The search box, which leaves left and right arrow keys to the overlay (see <see cref="OnArrowKey"/>).
+        /// Its caret always stays at the end of the text anyway, as with other search boxes.
+        /// </summary>
+        private partial class ModSearchTextBox : ShearedSearchTextBox
+        {
+            protected override InnerSearchTextBox CreateInnerTextBox() => new ModInnerSearchTextBox();
+
+            private partial class ModInnerSearchTextBox : InnerSearchTextBox
+            {
+                public override bool OnPressed(KeyBindingPressEvent<PlatformAction> e)
+                {
+                    switch (e.Action)
+                    {
+                        case PlatformAction.MoveBackwardChar:
+                        case PlatformAction.MoveForwardChar:
+                            return false;
+                    }
+
+                    return base.OnPressed(e);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Handles an arrow key press while nothing in particular is selected.
+        /// </summary>
+        /// <param name="direction">1 for right or up, -1 for left or down.</param>
+        /// <returns>Whether the press was handled.</returns>
+        protected virtual bool OnArrowKey(int direction) => false;
+
+        private static int? getArrowKeyDirection(KeyDownEvent e)
+        {
+            if (e.ControlPressed || e.ShiftPressed || e.AltPressed || e.SuperPressed)
+                return null;
+
+            switch (e.Key)
+            {
+                case Key.Right:
+                case Key.Up:
+                    return 1;
+
+                case Key.Left:
+                case Key.Down:
+                    return -1;
+
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// Whether arrow keys aren't needed by anything in particular: the customisation panel is closed, and nothing other than
+        /// the search box has focus (which ignores arrow keys, as its caret always stays at the end of the text).
+        /// </summary>
+        private bool canUseArrowKeys()
+        {
+            if (customisationPanel.ExpandedState.Value != ModCustomisationPanel.ModCustomisationPanelState.Collapsed)
+                return false;
+
+            var focused = GetContainingInputManager()?.FocusedDrawable;
+
+            return focused == null || focused == this || SearchTextBox.HasFocus;
         }
 
         private void setTextBoxFocus(bool focus)

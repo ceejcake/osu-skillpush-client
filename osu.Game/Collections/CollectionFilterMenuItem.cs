@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Collections.Generic;
 using osu.Framework.Localisation;
 using osu.Game.Database;
 using osu.Game.Localisation;
@@ -27,7 +28,12 @@ namespace osu.Game.Collections
         /// <summary>
         /// The folder this collection is displayed inside, if any.
         /// </summary>
-        public string? Folder { get; }
+        public Guid? ParentFolderID { get; }
+
+        /// <summary>
+        /// The folders this item is nested inside, starting from the top level. The item is only shown while all of them are expanded.
+        /// </summary>
+        public IReadOnlyList<Guid> AncestorFolderIDs { get; protected init; } = Array.Empty<Guid>();
 
         /// <summary>
         /// Whether this is the first entry for this collection. Collections inside multiple folders have one entry per folder,
@@ -39,13 +45,14 @@ namespace osu.Game.Collections
         /// Creates a new <see cref="CollectionFilterMenuItem"/>.
         /// </summary>
         /// <param name="collection">The collection to filter beatmaps from.</param>
-        /// <param name="folder">The folder the collection is displayed inside, if any.</param>
+        /// <param name="ancestorFolderIds">The folders the collection is displayed inside, starting from the top level.</param>
         /// <param name="isPrimary">Whether this is the first entry for this collection.</param>
-        public CollectionFilterMenuItem(Live<BeatmapCollection> collection, string? folder = null, bool isPrimary = true)
+        public CollectionFilterMenuItem(Live<BeatmapCollection> collection, IReadOnlyList<Guid>? ancestorFolderIds = null, bool isPrimary = true)
             : this(collection.PerformRead(c => c.Name))
         {
             Collection = collection;
-            Folder = folder;
+            AncestorFolderIDs = ancestorFolderIds ?? Array.Empty<Guid>();
+            ParentFolderID = AncestorFolderIDs.Count > 0 ? AncestorFolderIDs[^1] : null;
             IsPrimary = isPrimary;
         }
 
@@ -61,10 +68,10 @@ namespace osu.Game.Collections
 
             if (Collection == null) return false;
 
-            return Collection.ID == other.Collection?.ID && Folder == other.Folder;
+            return Collection.ID == other.Collection?.ID && ParentFolderID == other.ParentFolderID;
         }
 
-        public override int GetHashCode() => HashCode.Combine(Collection?.ID, Folder);
+        public override int GetHashCode() => HashCode.Combine(Collection?.ID, ParentFolderID);
     }
 
     public class AllBeatmapsCollectionFilterMenuItem : CollectionFilterMenuItem
@@ -92,20 +99,27 @@ namespace osu.Game.Collections
     }
 
     /// <summary>
-    /// A non-selectable header grouping collections inside a folder.
+    /// A folder of collections. Selecting it filters to all beatmaps inside the folder's collections (including those in subfolders).
     /// </summary>
     public class CollectionFolderFilterMenuItem : CollectionFilterMenuItem
     {
+        public readonly Guid FolderID;
+
         public readonly string FolderName;
 
-        public CollectionFolderFilterMenuItem(string folderName, int collectionCount)
-            : base($"{folderName} ({collectionCount})")
+        /// <param name="folder">The folder.</param>
+        /// <param name="collectionCount">The number of collections inside the folder, including those in subfolders.</param>
+        /// <param name="ancestorFolderIds">The folders this folder is inside, starting from the top level.</param>
+        public CollectionFolderFilterMenuItem(CollectionFolder folder, int collectionCount, IReadOnlyList<Guid>? ancestorFolderIds = null)
+            : base($"{folder.Name} ({collectionCount})")
         {
-            FolderName = folderName;
+            FolderID = folder.ID;
+            FolderName = folder.Name;
+            AncestorFolderIDs = ancestorFolderIds ?? Array.Empty<Guid>();
         }
 
-        public override bool Equals(CollectionFilterMenuItem? other) => other is CollectionFolderFilterMenuItem folder && folder.FolderName == FolderName;
+        public override bool Equals(CollectionFilterMenuItem? other) => other is CollectionFolderFilterMenuItem folder && folder.FolderID == FolderID;
 
-        public override int GetHashCode() => HashCode.Combine(3, FolderName);
+        public override int GetHashCode() => HashCode.Combine(3, FolderID);
     }
 }

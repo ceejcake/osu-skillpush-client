@@ -36,6 +36,7 @@ namespace osu.Game.Configuration
             SetDefault<UserActivity?>(Static.UserOnlineActivity, null);
             SetDefault<APITag[]?>(Static.AllBeatmapTags, null);
             SetDefault<PracticeCheckpoint?>(Static.PracticeCheckpoint, null);
+            SetDefault<LastPlaythroughMisses?>(Static.LastPlaythroughMisses, null);
         }
 
         /// <summary>
@@ -116,5 +117,10 @@ namespace osu.Game.Configuration
         /// The point gameplay should restart from while practising a section of a beatmap.
         /// </summary>
         PracticeCheckpoint,
+
+        /// <summary>
+        /// Where the misses were in the last full playthrough of the beatmap being played, shown on the practice strain graph.
+        /// </summary>
+        LastPlaythroughMisses,
     }
 }

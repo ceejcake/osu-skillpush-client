@@ -475,6 +475,16 @@ namespace osu.Game.Localisation
         public static LocalisableString TogglePracticeCheckpoint => new TranslatableString(getKey(@"toggle_practice_checkpoint"), @"Toggle restarting from the last seek (practice)");
 
         /// <summary>
+        /// "Toggle misaim indicator"
+        /// </summary>
+        public static LocalisableString ToggleMisaimIndicator => new TranslatableString(getKey(@"toggle_misaim_indicator"), @"Toggle misaim indicator");
+
+        /// <summary>
+        /// "Toggle misaim indicator details"
+        /// </summary>
+        public static LocalisableString ToggleMisaimIndicatorDetails => new TranslatableString(getKey(@"toggle_misaim_indicator_details"), @"Toggle misaim indicator details");
+
+        /// <summary>
         /// "Seek to previous hit object"
         /// </summary>
         public static LocalisableString EditorSeekToPreviousHitObject => new TranslatableString(getKey(@"editor_seek_to_previous_hit_object"), @"Seek to previous hit object");

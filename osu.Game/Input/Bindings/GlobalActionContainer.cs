@@ -210,6 +210,8 @@ namespace osu.Game.Input.Bindings
             new KeyBinding(InputKey.Left, GlobalAction.PracticeSeekBackward),
             new KeyBinding(InputKey.Right, GlobalAction.PracticeSeekForward),
             new KeyBinding(InputKey.F7, GlobalAction.TogglePracticeCheckpoint),
+            new KeyBinding(new[] { InputKey.Control, InputKey.M }, GlobalAction.ToggleMisaimIndicator),
+            new KeyBinding(new[] { InputKey.Control, InputKey.Shift, InputKey.M }, GlobalAction.ToggleMisaimIndicatorDetails),
             new KeyBinding(InputKey.MouseMiddle, GlobalAction.PauseGameplay),
             new KeyBinding(InputKey.Control, GlobalAction.HoldForHUD),
             new KeyBinding(InputKey.Enter, GlobalAction.ToggleChatFocus),
@@ -659,6 +661,12 @@ namespace osu.Game.Input.Bindings
 
         [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.TogglePracticeCheckpoint))]
         TogglePracticeCheckpoint,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.ToggleMisaimIndicator))]
+        ToggleMisaimIndicator,
+
+        [LocalisableDescription(typeof(GlobalActionKeyBindingStrings), nameof(GlobalActionKeyBindingStrings.ToggleMisaimIndicatorDetails))]
+        ToggleMisaimIndicatorDetails,
     }
 
     public enum GlobalActionCategory

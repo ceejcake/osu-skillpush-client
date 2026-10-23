@@ -54,6 +54,8 @@ namespace osu.Game.Rulesets.Osu
     {
         public override DrawableRuleset CreateDrawableRulesetWith(IBeatmap beatmap, IReadOnlyList<Mod>? mods = null) => new DrawableOsuRuleset(this, beatmap, mods);
 
+        public override IScoringFormula CreateScoreV2Formula() => new OsuModScoreV2();
+
         public override ScoreProcessor CreateScoreProcessor() => new OsuScoreProcessor();
 
         public override HealthProcessor CreateHealthProcessor(double drainStartTime) => new OsuHealthProcessor(drainStartTime);
@@ -198,6 +200,7 @@ namespace osu.Game.Rulesets.Osu
                         new MultiMod(new OsuModFlashlight(), new OsuModBlinds()),
                         new OsuModStrictTracking(),
                         new OsuModAccuracyChallenge(),
+                        new OsuModHardRockCircleSize(),
                     };
 
                 case ModType.Conversion:
@@ -207,6 +210,7 @@ namespace osu.Game.Rulesets.Osu
                         new OsuModDifficultyAdjust(),
                         new OsuModClassic(),
                         new OsuModScoreV2(),
+                        new OsuModLazerScoring(),
                         new OsuModRandom(),
                         new OsuModCrossScreen(),
                         new OsuModMirror(),

@@ -34,6 +34,14 @@ namespace osu.Game.Collections
         [Resolved]
         private CollectionFolderManager? collectionFolders { get; set; }
 
+        /// <summary>
+        /// When present, only collections inside the folder being viewed are shown, below a grid of the folders inside it.
+        /// </summary>
+        [Resolved]
+        private CollectionFolderBrowser? browser { get; set; }
+
+        private CollectionFolderGrid? folderGrid;
+
         private Scroll scroll = null!;
 
         private IDisposable? realmSubscription;
@@ -53,6 +61,13 @@ namespace osu.Game.Collections
             DragActive = { BindTarget = DragActive }
         };
 
+        [BackgroundDependencyLoader]
+        private void load()
+        {
+            if (browser != null && collectionFolders != null)
+                scroll.AddHeader(folderGrid = new CollectionFolderGrid());
+        }
+
         protected override void LoadComplete()
         {
             base.LoadComplete();
@@ -61,6 +76,8 @@ namespace osu.Game.Collections
 
             if (collectionFolders != null)
                 collectionFolders.FoldersChanged += onFoldersChanged;
+
+            browser?.CurrentFolder.BindValueChanged(_ => updateVisibility());
         }
 
         /// <summary>
@@ -91,6 +108,8 @@ namespace osu.Game.Collections
         {
             currentCollections = collections;
 
+            collectionFolders?.RemoveMissingCollections(collections.AsEnumerable().Select(c => c.ID));
+
             if (changes?.InsertedIndices.Length == 1)
                 lastCreated = collections[changes.InsertedIndices[0]].ID;
 
@@ -99,44 +118,46 @@ namespace osu.Game.Collections
             updateItems(modified);
         }
 
-        private void onFoldersChanged() => Scheduler.AddOnce(reorderItems);
+        private void onFoldersChanged() => Scheduler.AddOnce(updateVisibility);
 
         /// <summary>
-        /// Reorders the existing items to match folder grouping, without recreating them
-        /// (so that any open folder popover stays open).
+        /// Whether a collection is inside the folder being viewed.
         /// </summary>
-        private void reorderItems()
+        private bool isInView(Guid collectionId) => browser == null || collectionFolders?.IsDirectlyInside(collectionId, browser.CurrentFolder.Value) != false;
+
+        /// <summary>
+        /// Shows only the collections inside the folder being viewed.
+        /// Items are kept rather than recreated, so that any open folder popover stays open.
+        /// </summary>
+        private void updateVisibility()
         {
-            var ordered = getOrderedCollections();
+            int visible = 0;
 
-            if (ordered == null)
-                return;
-
-            if (!ordered.Select(c => c.ID).OrderBy(id => id).SequenceEqual(Items.Select(i => i.ID).OrderBy(id => id)))
+            foreach (var item in flow.Children.OfType<DrawableCollectionListItem>())
             {
-                updateItems(null);
-                return;
+                item.InCurrentView = isInView(item.Model.ID);
+
+                if (item.InCurrentView)
+                    visible++;
             }
 
-            for (int i = 0; i < ordered.Count; i++)
-            {
-                int current = Items.ToList().FindIndex(item => item.ID == ordered[i].ID);
-
-                if (current != i)
-                    Items.Move(current, i);
-            }
+            if (folderGrid != null)
+                folderGrid.VisibleCollections = visible;
         }
 
-        private List<BeatmapCollection>? getOrderedCollections() =>
-            currentCollections?.AsEnumerable()
-                              .Select(c => (collection: c, folder: collectionFolders?.GetFolders(c.ID).FirstOrDefault()))
-                              .OrderBy(c => c.folder == null)
-                              .ThenBy(c => c.folder, StringComparer.OrdinalIgnoreCase)
-                              .Select(c => c.collection)
-                              .ToList();
+        /// <summary>
+        /// Recounts how many beatmaps of each collection are available locally (which changes as beatmaps are downloaded or deleted).
+        /// </summary>
+        public void RefreshCounts()
+        {
+            foreach (var item in flow.Children.OfType<DrawableCollectionListItem>())
+                item.RefreshCount();
+        }
+
+        private List<BeatmapCollection>? getOrderedCollections() => currentCollections?.AsEnumerable().ToList();
 
         /// <summary>
-        /// Updates the displayed items, grouping collections by folder (folders first, then unsorted collections).
+        /// Updates the displayed items.
         /// </summary>
         /// <param name="modified">If non-null, only these collections need refreshing unless the ordering has changed.</param>
         private void updateItems(HashSet<Guid>? modified)
@@ -157,15 +178,17 @@ namespace osu.Game.Collections
                     Items.Insert(i, ordered[i].ToLive(realm));
                 }
 
+                Scheduler.AddOnce(updateVisibility);
                 return;
             }
 
             Items.Clear();
             Items.AddRange(ordered.Select(c => c.ToLive(realm)));
+            Scheduler.AddOnce(updateVisibility);
         }
 
         protected override OsuRearrangeableListItem<Live<BeatmapCollection>> CreateOsuDrawable(Live<BeatmapCollection> item) =>
-            new DrawableCollectionListItem(item, true);
+            new DrawableCollectionListItem(item, true) { InCurrentView = isInView(item.ID) };
 
         protected override void Dispose(bool isDisposing)
         {
@@ -184,6 +207,15 @@ namespace osu.Game.Collections
         {
             protected override Container<Drawable> Content => content;
             private readonly FillFlowContainer content;
+
+            /// <summary>
+            /// Adds a drawable above the list.
+            /// </summary>
+            public void AddHeader(Drawable header)
+            {
+                content.Add(header);
+                content.SetLayoutPosition(header, -1);
+            }
 
             public Scroll()
             {

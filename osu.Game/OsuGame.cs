@@ -1261,6 +1261,12 @@ namespace osu.Game
             // Loaded here rather than with the other beatmap components, as it shows its progress through the notification
             // overlay, which only becomes available above.
             loadComponentSingleFile(new ModdedStarRatingCache(), Add, true);
+
+            // Shared, so that downloads started from anywhere share one queue and respect mirror rate limits together.
+            // Loaded straight away (it has nothing to load), so that it can be used as soon as anything which uses it is shown.
+            var collectorImporter = new OsuCollectorImporter();
+            dependencies.CacheAs(collectorImporter);
+            Add(collectorImporter);
             loadComponentSingleFile<BeatmapStore>(detachedBeatmapStore = new RealmDetachedBeatmapStore(), Add, true);
             loadComponentSingleFile(new QueueController(), Add, true);
 

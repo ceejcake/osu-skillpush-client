@@ -235,6 +235,57 @@ namespace osu.Game.Tests.Visual.Gameplay
         }
 
         [Test]
+        public void TestPressedMisses()
+        {
+            int barLines() => this.ChildrenOfType<BarHitErrorMeter.JudgementLine>().Count();
+            int legacyLines() => this.ChildrenOfType<LegacyBarHitErrorMeter.JudgementLine>().Count();
+
+            AddStep("enable setting", () => config.SetValue(OsuSetting.HitErrorShowPressedMisses, true));
+            AddStep("OD 5", () => recreateDisplay(new OsuHitWindows(), 5));
+
+            // A press too early for a 50 is still within the miss window.
+            AddStep("early pressed miss", () => newJudgement(-drawableRuleset.HitWindows.WindowFor(HitResult.Meh) - 20, HitResult.Miss));
+            AddAssert("red line on each bar meter", () => barLines(), () => Is.EqualTo(3));
+            AddAssert("red line on each legacy meter", () => legacyLines(), () => Is.EqualTo(3));
+            AddAssert("lines are red", () => this.ChildrenOfType<BarHitErrorMeter.JudgementLine>().All(l => l.Colour == new osu.Game.Graphics.OsuColour().Red));
+
+            // Not pressing at all is only judged as a miss once the object can no longer be hit.
+            AddStep("miss from not pressing", () => newJudgement(drawableRuleset.HitWindows.WindowFor(HitResult.Meh) + 20, HitResult.Miss));
+            AddAssert("no line added", () => barLines(), () => Is.EqualTo(3));
+
+            AddStep("disable setting", () => config.SetValue(OsuSetting.HitErrorShowPressedMisses, false));
+            AddStep("early pressed miss", () => newJudgement(-drawableRuleset.HitWindows.WindowFor(HitResult.Meh) - 20, HitResult.Miss));
+            AddAssert("no line added", () => barLines(), () => Is.EqualTo(3));
+
+            AddStep("enable setting", () => config.SetValue(OsuSetting.HitErrorShowPressedMisses, true));
+        }
+
+        [Test]
+        public void TestMisaimedPresses()
+        {
+            int barLines() => this.ChildrenOfType<BarHitErrorMeter.JudgementLine>().Count();
+            int legacyLines() => this.ChildrenOfType<LegacyBarHitErrorMeter.JudgementLine>().Count();
+
+            void misaim(double offset) => ((TestPlayfield)drawableRuleset.Playfield).Misaim(new HitCircle { HitWindows = drawableRuleset.HitWindows }, offset);
+
+            AddStep("enable setting", () => config.SetValue(OsuSetting.HitErrorShowPressedMisses, true));
+            AddStep("OD 5", () => recreateDisplay(new OsuHitWindows(), 5));
+
+            AddStep("misaimed press 20ms late", () => misaim(20));
+            AddAssert("red line on each bar meter", () => barLines(), () => Is.EqualTo(3));
+            AddAssert("red line on each legacy meter", () => legacyLines(), () => Is.EqualTo(3));
+            AddAssert("lines are red", () => this.ChildrenOfType<BarHitErrorMeter.JudgementLine>().All(l => l.Colour == new osu.Game.Graphics.OsuColour().Red));
+            AddAssert("line where the press landed", () => this.ChildrenOfType<BarHitErrorMeter.JudgementLine>().First().Y,
+                () => Is.EqualTo((float)(20 / drawableRuleset.HitWindows.WindowFor(HitResult.Meh) + 1) / 2).Within(0.001f));
+
+            AddStep("disable setting", () => config.SetValue(OsuSetting.HitErrorShowPressedMisses, false));
+            AddStep("misaimed press", () => misaim(-10));
+            AddAssert("no line added", () => barLines(), () => Is.EqualTo(3));
+
+            AddStep("enable setting", () => config.SetValue(OsuSetting.HitErrorShowPressedMisses, true));
+        }
+
+        [Test]
         public void TestClear()
         {
             AddStep("OD 1", () => recreateDisplay(new OsuHitWindows(), 1));
@@ -362,7 +413,7 @@ namespace osu.Game.Tests.Visual.Gameplay
             }
 
             public override IAdjustableAudioComponent Audio { get; }
-            public override Playfield Playfield { get; }
+            public override Playfield Playfield { get; } = new TestPlayfield();
             public override PlayfieldAdjustmentContainer PlayfieldAdjustmentContainer { get; }
             public override Container Overlays { get; }
             public override Container FrameStableComponents { get; }
@@ -385,6 +436,11 @@ namespace osu.Game.Tests.Visual.Gameplay
             public override void RequestResume(Action continueResume) => throw new NotImplementedException();
 
             public override void CancelResume() => throw new NotImplementedException();
+        }
+
+        private partial class TestPlayfield : Playfield
+        {
+            public void Misaim(HitObject hitObject, double timeOffset) => TriggerMisaimedPress(hitObject, timeOffset);
         }
 
         private partial class TestScoreProcessor : ScoreProcessor

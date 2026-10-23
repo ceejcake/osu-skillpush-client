@@ -81,7 +81,8 @@ namespace osu.Game.Rulesets.UI
                     Size = new Vector2(37, 26),
                     // arbitrary adjustment for better vertical alignment
                     Margin = new MarginPadding { Top = -1 },
-                    Icon = mod.Icon.Value
+                    Icon = mod.Icon.Value,
+                    Scale = new Vector2(1, mod is IHasUpsideDownIcon ? -1 : 1),
                 });
                 tinySwitch.Scale = new Vector2(0.3f);
             }

@@ -34,6 +34,12 @@ namespace osu.Game.Collections
         [Resolved]
         private CollectionFolderManager collectionFolders { get; set; } = null!;
 
+        /// <summary>
+        /// When present, new folders are created inside the folder being viewed.
+        /// </summary>
+        [Resolved]
+        private CollectionFolderBrowser? browser { get; set; }
+
         private FillFlowContainer folderFlow = null!;
         private OsuScrollContainer folderScroll = null!;
         private OsuTextBox newFolderTextBox = null!;
@@ -91,7 +97,8 @@ namespace osu.Game.Collections
                 if (string.IsNullOrEmpty(name))
                     return;
 
-                collectionFolders.AddToFolder(collectionId, name);
+                var folder = collectionFolders.CreateFolder(name, browser?.CurrentFolder.Value);
+                collectionFolders.AddToFolder(collectionId, folder.ID);
                 newFolderTextBox.Text = string.Empty;
                 populateFolders();
             };
@@ -109,23 +116,31 @@ namespace osu.Game.Collections
         {
             var rows = new List<Drawable>();
 
-            foreach (string folder in collectionFolders.Folders)
+            addRows(null, 0);
+
+            // Adds rows for the folders inside a folder (or the top level if null), with each folder followed by its subfolders.
+            void addRows(Guid? parentId, int depth)
             {
-                rows.Add(new FolderRow(folder, collectionFolders.IsInFolder(collectionId, folder))
+                foreach (var folder in collectionFolders.GetChildFolders(parentId))
                 {
-                    Toggled = inFolder =>
+                    rows.Add(new FolderRow(folder.Name, depth, collectionFolders.IsInFolder(collectionId, folder.ID))
                     {
-                        if (inFolder)
-                            collectionFolders.AddToFolder(collectionId, folder);
-                        else
-                            collectionFolders.RemoveFromFolder(collectionId, folder);
-                    },
-                    Deleted = () =>
-                    {
-                        collectionFolders.DeleteFolder(folder);
-                        populateFolders();
-                    },
-                });
+                        Toggled = inFolder =>
+                        {
+                            if (inFolder)
+                                collectionFolders.AddToFolder(collectionId, folder.ID);
+                            else
+                                collectionFolders.RemoveFromFolder(collectionId, folder.ID);
+                        },
+                        Deleted = () =>
+                        {
+                            collectionFolders.DeleteFolder(folder.ID);
+                            populateFolders();
+                        },
+                    });
+
+                    addRows(folder.ID, depth + 1);
+                }
             }
 
             if (rows.Count == 0)
@@ -150,6 +165,7 @@ namespace osu.Game.Collections
             public Action? Deleted;
 
             private readonly string folder;
+            private readonly int depth;
             private bool inFolder;
 
             private Box background = null!;
@@ -158,9 +174,10 @@ namespace osu.Game.Collections
             [Resolved]
             private OsuColour colours { get; set; } = null!;
 
-            public FolderRow(string folder, bool inFolder)
+            public FolderRow(string folder, int depth, bool inFolder)
             {
                 this.folder = folder;
+                this.depth = depth;
                 this.inFolder = inFolder;
 
                 RelativeSizeAxes = Axes.X;
@@ -175,7 +192,7 @@ namespace osu.Game.Collections
                     new Container
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Padding = new MarginPadding { Right = row_height + 4 },
+                        Padding = new MarginPadding { Left = depth * 16, Right = row_height + 4 },
                         Child = new OsuClickableContainer
                         {
                             RelativeSizeAxes = Axes.Both,
@@ -213,7 +230,7 @@ namespace osu.Game.Collections
                         Anchor = Anchor.CentreRight,
                         Origin = Anchor.CentreRight,
                         Icon = FontAwesome.Solid.Trash,
-                        TooltipText = $"Delete folder \"{folder}\" (collections inside are kept)",
+                        TooltipText = $"Delete folder \"{folder}\" (everything inside is kept, and moves up a level)",
                         Action = () => Deleted?.Invoke(),
                     },
                 };

@@ -6,9 +6,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using osu.Framework.Allocation;
+using osu.Framework.Graphics.Containers;
+using osu.Framework.Testing;
 using osu.Game.Beatmaps;
 using osu.Game.Collections;
 using osu.Game.Tests.Resources;
+using osuTK.Input;
 
 namespace osu.Game.Tests.Visual.Navigation
 {
@@ -49,13 +52,13 @@ namespace osu.Game.Tests.Visual.Navigation
 
             AddAssert("only missing beatmaps looked up", () => importer.Lookups.OrderBy(id => id), () => Is.EqualTo(new[] { remote_beatmap_id, unknown_beatmap_id }));
             AddAssert("has the local beatmap", () => hashes("pasted"), () => Does.Contain(localBeatmap.MD5Hash));
-            AddAssert("has the listed checksum of the missing beatmap", () => hashes("pasted"), () => Does.Contain("listed-checksum"));
 
             AddUntilStep("missing set downloaded", () => importer.Downloads.ToArray(), () => Is.EqualTo(new[] { remote_set_id }));
 
             // The mirror's copy isn't the listed version, so its checksum is only known once it has been imported.
-            AddUntilStep("has the downloaded version too", () => hashes("pasted"), () => Does.Contain(importer.DownloadedHash));
-            AddAssert("nothing else added", () => hashes("pasted"), () => Has.Length.EqualTo(3));
+            // The listed version can never be found locally, so it is replaced, keeping the collection's size accurate.
+            AddUntilStep("downloaded version replaces listed version", () => hashes("pasted"), () => Does.Contain(importer.DownloadedHash).And.Not.Contain("listed-checksum"));
+            AddAssert("nothing else added", () => hashes("pasted"), () => Has.Length.EqualTo(2));
         }
 
         [Test]
@@ -68,6 +71,52 @@ namespace osu.Game.Tests.Visual.Navigation
             AddAssert("no lookups needed", () => importer.Lookups, () => Is.Empty);
             AddAssert("no downloads needed", () => importer.Downloads, () => Is.Empty);
         }
+
+        [Test]
+        public void TestUpdateWithDuplicates()
+        {
+            AddStep("create collection", () => Game.Realm.Write(r => r.Add(new BeatmapCollection("existing", new[] { localBeatmap.MD5Hash }))));
+
+            AddStep("paste list with duplicates", () => importer.ImportBeatmapIds("existing",
+                $"{localBeatmap.OnlineID} {remote_beatmap_id}\n{localBeatmap.OnlineID}\nhttps://osu.ppy.sh/b/{remote_beatmap_id} {remote_beatmap_id}"));
+
+            AddUntilStep("missing set downloaded once", () => importer.Downloads.ToArray(), () => Is.EqualTo(new[] { remote_set_id }));
+            AddUntilStep("missing beatmap added once", () => hashes("existing"), () => Is.EquivalentTo(new[] { localBeatmap.MD5Hash, importer.DownloadedHash }));
+            AddAssert("looked up once", () => importer.Lookups.ToArray(), () => Is.EqualTo(new[] { remote_beatmap_id }));
+        }
+
+        [Test]
+        public void TestAddFromManageCollectionsDialog()
+        {
+            AddStep("create collection", () => Game.Realm.Write(r => r.Add(new BeatmapCollection("from dialog"))));
+            AddUntilStep("wait for manage collections to load", () => Game.ChildrenOfType<ManageCollectionsDialog>().Any());
+            AddStep("open manage collections", () => Game.ChildrenOfType<ManageCollectionsDialog>().Single().Show());
+
+            AddUntilStep("wait for button", () => addButton() != null);
+            AddStep("click add beatmap ids", () =>
+            {
+                InputManager.MoveMouseTo(addButton()!);
+                InputManager.Click(MouseButton.Left);
+            });
+
+            AddUntilStep("popover shown", () => Game.ChildrenOfType<AddBeatmapIdsPopover>().Any());
+
+            // Only beatmaps which are available locally, so that the game's own importer doesn't need to go online.
+            AddStep("paste and confirm", () =>
+            {
+                Game.ChildrenOfType<AddBeatmapIdsPopover>().Single().ChildrenOfType<AddBeatmapIdsPopover.PastedListTextBox>().Single().Text =
+                    $"{localBeatmap.OnlineID} {localBeatmap.OnlineID}";
+                InputManager.Key(Key.Enter);
+            });
+
+            AddUntilStep("added once", () => hashes("from dialog"), () => Is.EqualTo(new[] { localBeatmap.MD5Hash }));
+            AddUntilStep("popover closed", () => !Game.ChildrenOfType<AddBeatmapIdsPopover>().Any(p => p.State.Value == Visibility.Visible));
+        }
+
+        private DrawableCollectionListItem.AddBeatmapIdsButton? addButton() =>
+            Game.ChildrenOfType<DrawableCollectionListItem>()
+                .FirstOrDefault(i => i.Model.IsManaged && i.Model.PerformRead(c => c.Name) == "from dialog")?
+                .ChildrenOfType<DrawableCollectionListItem.AddBeatmapIdsButton>().SingleOrDefault();
 
         [Test]
         public void TestNothingCreatedWithoutNameOrIds()

@@ -20,6 +20,13 @@ namespace osu.Game.Skinning
         private readonly Bindable<float> cursorSize;
         private readonly Bindable<string> saved;
 
+        /// <summary>
+        /// The bindables given to the constructor.
+        /// Bindings between bindables are weak, so these must be kept alive for the bound copies to keep receiving changes
+        /// (e.g. when given the result of <c>ConfigManager.GetBindable</c>, which nothing else holds on to).
+        /// </summary>
+        private readonly object[] sources;
+
         private readonly Dictionary<string, float> sizes;
 
         /// <param name="skin">The ID of the skin in use.</param>
@@ -27,6 +34,8 @@ namespace osu.Game.Skinning
         /// <param name="saved">Where the size of each skin is kept between sessions.</param>
         public SkinCursorSizeMemory(IBindable<string> skin, Bindable<float> cursorSize, Bindable<string> saved)
         {
+            sources = new object[] { skin, cursorSize, saved };
+
             this.skin = skin.GetBoundCopy();
             this.cursorSize = cursorSize.GetBoundCopy();
             this.saved = saved.GetBoundCopy();

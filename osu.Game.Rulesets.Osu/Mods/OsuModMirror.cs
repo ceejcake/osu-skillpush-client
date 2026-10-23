@@ -15,7 +15,7 @@ namespace osu.Game.Rulesets.Osu.Mods
     public class OsuModMirror : ModMirror, IApplicableToHitObject
     {
         public override LocalisableString Description => "Flip objects on the chosen axes, or turn the whole map on its side.";
-        public override Type[] IncompatibleMods => new[] { typeof(ModHardRock) };
+        public override Type[] IncompatibleMods => new[] { typeof(ModHardRock), typeof(OsuModHardRockCircleSize) };
 
         [SettingSource("Flipped axes")]
         public Bindable<MirrorType> Reflection { get; } = new Bindable<MirrorType>();

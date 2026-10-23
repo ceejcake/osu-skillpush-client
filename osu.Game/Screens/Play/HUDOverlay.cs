@@ -123,6 +123,7 @@ namespace osu.Game.Screens.Play
                     Alpha = configuration.ShowFailingOverlay ? 1 : 0,
                     Child = CreateFailingLayer()
                 },
+                new AimFeedbackLayer(drawableRuleset?.Playfield),
                 //Needs to be initialized before skinnable drawables.
                 judgementCountController = new JudgementCountController(),
                 clicksPerSecondController = new ClicksPerSecondController(),

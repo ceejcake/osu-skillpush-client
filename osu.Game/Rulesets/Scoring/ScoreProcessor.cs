@@ -181,9 +181,18 @@ namespace osu.Game.Rulesets.Scoring
         private double scoreMultiplier = 1;
 
         /// <summary>
-        /// An alternative scoring formula provided by a mod, if one is active.
+        /// An alternative scoring formula, if one is active: provided by a mod, or the ruleset's Score V2 formula while that
+        /// is the default (see <see cref="ScoringFormulaDefaults.ScoreV2ByDefault"/>) and no mod asks for the standard scoring.
         /// </summary>
+        /// <remarks>
+        /// Decided when the mods or the beatmap are set, not followed live: the combo portion is built up judgement by judgement
+        /// under one formula, so a play can't switch to another part way through.
+        /// </remarks>
         private IScoringFormula? scoringFormula;
+
+        private IScoringFormula? scoreV2Formula;
+
+        private readonly Ruleset formulaRuleset;
 
         public Dictionary<HitResult, int> MaximumStatistics
         {
@@ -214,14 +223,18 @@ namespace osu.Game.Rulesets.Scoring
 
             Accuracy.ValueChanged += _ => updateRank();
 
+            formulaRuleset = ruleset;
+
             Mods.ValueChanged += mods =>
             {
-                scoringFormula = mods.NewValue.OfType<IScoringFormula>().SingleOrDefault();
+                updateScoringFormula(mods.NewValue);
 
                 updateScoreMultiplier();
                 updateScore();
                 updateRank();
             };
+
+            updateScoringFormula(Mods.Value);
 
             Beatmap.ValueChanged += beatmap =>
             {
@@ -231,6 +244,8 @@ namespace osu.Game.Rulesets.Scoring
 
         public override void ApplyBeatmap(IBeatmap beatmap)
         {
+            updateScoringFormula(Mods.Value);
+
             // NOTE: The ordering of operations here is significant.
             // `Beatmap.Value` must be set before `base.ApplyBeatmap()` because changes to `Beatmap.Value`
             // trigger recalculation of `scoreMultiplier`,
@@ -343,6 +358,14 @@ namespace osu.Game.Rulesets.Scoring
         /// </summary>
         /// <param name="result">The judgement result.</param>
         protected virtual double GetBonusScoreChange(JudgementResult result) => GetBaseScoreForResult(result.Type);
+
+        private void updateScoringFormula(IReadOnlyList<Mod> mods)
+        {
+            scoringFormula = mods.OfType<IScoringFormula>().SingleOrDefault();
+
+            if (scoringFormula == null && ScoringFormulaDefaults.ScoreV2ByDefault.Value && !mods.Any(m => m is IStandardScoringFormula))
+                scoringFormula = scoreV2Formula ??= formulaRuleset.CreateScoreV2Formula();
+        }
 
         /// <summary>
         /// Gets the final score change to be applied to the combo portion of the score.

@@ -77,6 +77,17 @@ namespace osu.Game.Overlays.Login
         private OsuScrollContainer topPlaysScroll = null!;
         private FillFlowContainer topPlaysFlow = null!;
         private OsuTextFlowContainer emptyText = null!;
+        private OsuSpriteText topPlaysHeader = null!;
+
+        /// <summary>
+        /// Whether today's top plays are shown instead of the best plays overall. Toggled by clicking the total performance.
+        /// </summary>
+        public readonly BindableBool ShowingTodayTopPlays = new BindableBool();
+
+        /// <summary>
+        /// The start of the day the shown plays are from, so that they are refreshed when a new day begins.
+        /// </summary>
+        private DateTimeOffset shownDayStart;
 
         public GuestProfilePanel()
         {
@@ -150,7 +161,10 @@ namespace osu.Game.Overlays.Login
                     {
                         new Drawable[]
                         {
-                            createStatistic("Performance", out performanceText),
+                            new PerformanceStatistic(createStatistic("Performance", out performanceText))
+                            {
+                                Action = ShowingTodayTopPlays.Toggle,
+                            },
                             createStatistic("Accuracy", out accuracyText),
                             createStatistic("Ranked beatmaps", out countText),
                         }
@@ -163,10 +177,9 @@ namespace osu.Game.Overlays.Login
                     Colour = colourProvider.Highlight1,
                     Alpha = 0,
                 },
-                new OsuSpriteText
+                topPlaysHeader = new OsuSpriteText
                 {
                     Margin = new MarginPadding { Horizontal = SettingsPanel.CONTENT_MARGINS },
-                    Text = "BEST PERFORMANCE",
                     Font = OsuFont.GetFont(weight: FontWeight.Bold),
                 },
                 new Container
@@ -238,6 +251,17 @@ namespace osu.Game.Overlays.Login
 
             summary.BindTo(performanceTracker.Summary);
             summary.BindValueChanged(s => updateSummary(s.NewValue), true);
+
+            ShowingTodayTopPlays.BindValueChanged(_ => updateTopPlays());
+        }
+
+        protected override void Update()
+        {
+            base.Update();
+
+            // Today's plays are cleared at the start of each day, even if no new scores have been set.
+            if (ShowingTodayTopPlays.Value && LocalPerformanceSummary.GetDayStart(DateTimeOffset.Now) != shownDayStart)
+                updateTopPlays();
         }
 
         private void updateSummary(LocalPerformanceSummary value)
@@ -249,15 +273,48 @@ namespace osu.Game.Overlays.Login
             pendingText.Text = $"Calculating pp for {value.PendingScores:N0} scores...";
             pendingText.Alpha = value.PendingScores > 0 ? 1 : 0;
 
-            topPlaysFlow.ChildrenEnumerable = value.TopPlays.Select((play, index) => new TopPlayRow(play, index + 1)
+            updateTopPlays();
+        }
+
+        private void updateTopPlays()
+        {
+            var value = summary.Value;
+            bool today = ShowingTodayTopPlays.Value;
+
+            shownDayStart = LocalPerformanceSummary.GetDayStart(DateTimeOffset.Now);
+
+            var plays = today ? value.GetTodayTopPlays(DateTimeOffset.Now) : value.TopPlays;
+
+            topPlaysHeader.Text = today
+                ? $"TODAY'S TOP {LocalPerformanceSummary.TODAY_TOP_PLAYS} (SINCE {shownDayStart.LocalDateTime:h tt})"
+                : "BEST PERFORMANCE";
+
+            emptyText.Text = today
+                ? "No plays count yet today. Days start at 4 AM."
+                : "No plays count yet. Set a score on a ranked beatmap to earn pp.";
+
+            topPlaysFlow.ChildrenEnumerable = plays.Select((play, index) => new TopPlayRow(play, index + 1, showWeight: !today)
             {
                 RequestHide = () => RequestHide?.Invoke(),
             });
 
-            emptyText.Alpha = value.TopPlays.Count == 0 ? 1 : 0;
+            emptyText.Alpha = plays.Count == 0 ? 1 : 0;
 
-            float contentHeight = value.TopPlays.Count * (top_play_height + topPlaysFlow.Spacing.Y);
+            float contentHeight = plays.Count * (top_play_height + topPlaysFlow.Spacing.Y);
             topPlaysScroll.Height = Math.Min(contentHeight, top_plays_max_height);
+        }
+
+        /// <summary>
+        /// The total performance, which can be clicked to switch between the best plays overall and today's top plays.
+        /// </summary>
+        private partial class PerformanceStatistic : OsuClickableContainer
+        {
+            public PerformanceStatistic(Drawable content)
+            {
+                AutoSizeAxes = Axes.Both;
+                Child = content;
+                TooltipText = "Click to switch between your best plays and today's top 5";
+            }
         }
 
         private Drawable createStatistic(LocalisableString title, out OsuSpriteText valueText) => new FillFlowContainer
@@ -289,6 +346,7 @@ namespace osu.Game.Overlays.Login
 
             private readonly LocalTopPlay play;
             private readonly int position;
+            private readonly bool showWeight;
 
             [Resolved]
             private OverlayColourProvider colourProvider { get; set; } = null!;
@@ -298,10 +356,14 @@ namespace osu.Game.Overlays.Login
 
             private Box background = null!;
 
-            public TopPlayRow(LocalTopPlay play, int position)
+            /// <param name="play">The play.</param>
+            /// <param name="position">Its position in the list.</param>
+            /// <param name="showWeight">Whether to show how much of the play's performance counts towards the total, rather than when it was set.</param>
+            public TopPlayRow(LocalTopPlay play, int position, bool showWeight = true)
             {
                 this.play = play;
                 this.position = position;
+                this.showWeight = showWeight;
 
                 RelativeSizeAxes = Axes.X;
                 Height = top_play_height;
@@ -427,7 +489,7 @@ namespace osu.Game.Overlays.Login
                                         {
                                             Anchor = Anchor.TopRight,
                                             Origin = Anchor.TopRight,
-                                            Text = $"{play.Weight:P0} · {play.Performance * play.Weight:N0}pp",
+                                            Text = showWeight ? $"{play.Weight:P0} · {play.Performance * play.Weight:N0}pp" : $"set at {score.Date.LocalDateTime:t}",
                                             Font = OsuFont.GetFont(size: 11),
                                             Colour = colourProvider.Content2,
                                         },

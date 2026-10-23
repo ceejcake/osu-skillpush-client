@@ -10,6 +10,7 @@ using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Extensions.ObjectExtensions;
 using osu.Framework.Graphics;
+using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Events;
@@ -97,42 +98,39 @@ namespace osu.Game.Screens.Select
                 return;
 
             var items = new List<CollectionFilterMenuItem> { allBeatmapsItem };
-            var unsorted = new List<CollectionFilterMenuItem>();
-            var byFolder = new Dictionary<string, List<CollectionFilterMenuItem>>();
+            var collections = currentCollections.ToList();
+            var listedCollections = new HashSet<Guid>();
 
-            foreach (var collection in currentCollections)
+            addFolderContents(null, Array.Empty<Guid>());
+
+            // Adds the folders and collections inside a folder (or the top level if null), with each folder followed by its contents.
+            void addFolderContents(Guid? folderId, IReadOnlyList<Guid> ancestors)
             {
-                var live = collection.ToLive(realm);
-                var collectionFolderNames = collectionFolders?.GetFolders(collection.ID) ?? Array.Empty<string>();
-
-                if (collectionFolderNames.Count == 0)
+                if (collectionFolders != null)
                 {
-                    unsorted.Add(new CollectionFilterMenuItem(live));
-                    continue;
+                    foreach (var folder in collectionFolders.GetChildFolders(folderId))
+                    {
+                        var inside = collectionFolders.GetCollections(folder.ID, recursive: true).ToHashSet();
+                        int count = collections.Count(c => inside.Contains(c.ID));
+
+                        // Folders which don't contain any collections (even in subfolders) have nothing to filter by.
+                        if (count == 0)
+                            continue;
+
+                        items.Add(new CollectionFolderFilterMenuItem(folder, count, ancestors));
+                        addFolderContents(folder.ID, ancestors.Append(folder.ID).ToArray());
+                    }
                 }
 
-                // A collection inside multiple folders gets an entry in each.
-                for (int i = 0; i < collectionFolderNames.Count; i++)
+                foreach (var collection in collections)
                 {
-                    string folder = collectionFolderNames[i];
+                    if (collectionFolders?.IsDirectlyInside(collection.ID, folderId) == false)
+                        continue;
 
-                    if (!byFolder.TryGetValue(folder, out var list))
-                        byFolder[folder] = list = new List<CollectionFilterMenuItem>();
-
-                    list.Add(new CollectionFilterMenuItem(live, folder, isPrimary: i == 0));
+                    // A collection inside multiple folders gets an entry in each.
+                    items.Add(new CollectionFilterMenuItem(collection.ToLive(realm), ancestors, isPrimary: listedCollections.Add(collection.ID)));
                 }
             }
-
-            foreach (string folder in collectionFolders?.Folders ?? Array.Empty<string>())
-            {
-                if (!byFolder.TryGetValue(folder, out var list))
-                    continue;
-
-                items.Add(new CollectionFolderFilterMenuItem(folder, list.Count));
-                items.AddRange(list);
-            }
-
-            items.AddRange(unsorted);
 
             if (ShowManageCollectionsItem)
                 items.Add(new ManageCollectionsFilterMenuItem());
@@ -140,7 +138,9 @@ namespace osu.Game.Screens.Select
             if (filters.Count == 0)
             {
                 filters.AddRange(items);
-                Current.Value = filters.FirstOrDefault(item => item.Collection?.PerformRead(c => c.ID.ToString()) == configCollectionFilter.Value) ?? allBeatmapsItem;
+                Current.Value = CollectionFolderManager.TryParseFolderFilterValue(configCollectionFilter.Value, out var folderId)
+                    ? filters.OfType<CollectionFolderFilterMenuItem>().FirstOrDefault(f => f.FolderID == folderId) ?? allBeatmapsItem
+                    : filters.FirstOrDefault(item => item.Collection?.PerformRead(c => c.ID.ToString()) == configCollectionFilter.Value) ?? allBeatmapsItem;
                 return;
             }
 
@@ -150,10 +150,26 @@ namespace osu.Game.Screens.Select
             // as long as the selected collection is still in the same folder.
             filters.ReplaceRange(0, filters.Count, items);
 
-            var updatedItem = selectedItem?.Collection == null
-                ? null
-                : filters.FirstOrDefault(f => f.Equals(selectedItem))
-                  ?? filters.FirstOrDefault(f => f is not CollectionFolderFilterMenuItem && f.Collection?.ID == selectedItem.Collection.ID);
+            CollectionFilterMenuItem? updatedItem;
+
+            if (selectedItem is CollectionFolderFilterMenuItem selectedFolder)
+            {
+                updatedItem = filters.FirstOrDefault(f => f.Equals(selectedFolder));
+
+                // The selected folder was deleted, or no longer contains any collections.
+                if (updatedItem == null)
+                {
+                    Current.Value = allBeatmapsItem;
+                    return;
+                }
+            }
+            else
+            {
+                updatedItem = selectedItem?.Collection == null
+                    ? null
+                    : filters.FirstOrDefault(f => f.Equals(selectedItem))
+                      ?? filters.FirstOrDefault(f => f is not CollectionFolderFilterMenuItem && f.Collection?.ID == selectedItem.Collection.ID);
+            }
 
             bool selectionLost = updatedItem != null && !updatedItem.Equals(Current.Value);
 
@@ -183,9 +199,7 @@ namespace osu.Game.Screens.Select
             switch (filter.NewValue)
             {
                 case CollectionFolderFilterMenuItem folderItem:
-                    // Folders can't be selected (this is reached via keyboard selection) - toggle them instead.
-                    Current.Value = filter.OldValue;
-                    collectionFolders?.GetExpanded(folderItem.FolderName).Toggle();
+                    configCollectionFilter.Value = CollectionFolderManager.GetFolderFilterValue(folderItem.FolderID);
                     break;
 
                 case ManageCollectionsFilterMenuItem:
@@ -254,7 +268,7 @@ namespace osu.Game.Screens.Select
 
             private readonly Live<BeatmapCollection>? collection;
 
-            private readonly string? folder;
+            private readonly IReadOnlyList<Guid> ancestorFolders;
 
             private readonly bool isPrimary;
 
@@ -264,7 +278,7 @@ namespace osu.Game.Screens.Select
             [Resolved]
             private CollectionFolderManager? collectionFolders { get; set; }
 
-            private readonly BindableBool folderExpanded = new BindableBool(true);
+            private readonly FolderExpansion folderExpanded = new FolderExpansion();
 
             private bool matchingFilter = true;
             private bool filteringActive;
@@ -275,7 +289,7 @@ namespace osu.Game.Screens.Select
                 var value = ((DropdownMenuItem<CollectionFilterMenuItem>)item).Value;
 
                 collection = value.Collection;
-                folder = value.Folder;
+                ancestorFolders = value.AncestorFolderIDs;
                 isPrimary = value.IsPrimary;
             }
 
@@ -300,16 +314,14 @@ namespace osu.Game.Screens.Select
             /// </summary>
             private void updateFolderState()
             {
-                bool inFolder = folder != null && !filteringActive;
-
                 bool visible = filteringActive
                     ? matchingFilter && isPrimary
-                    : !inFolder || folderExpanded.Value;
+                    : folderExpanded.Value;
 
                 this.FadeTo(visible ? 1 : 0);
 
                 if (Foreground.Children.FirstOrDefault() is Content content)
-                    content.Label.Padding = new MarginPadding { Left = inFolder ? 35 : 15 };
+                    content.Label.Padding = new MarginPadding { Left = filteringActive || ancestorFolders.Count == 0 ? 15 : FolderIndent(ancestorFolders.Count) + 20 };
             }
 
             [BackgroundDependencyLoader]
@@ -330,9 +342,7 @@ namespace osu.Game.Screens.Select
             {
                 base.LoadComplete();
 
-                if (folder != null && collectionFolders != null)
-                    folderExpanded.BindTo(collectionFolders.GetExpanded(folder));
-
+                folderExpanded.Bind(collectionFolders, ancestorFolders);
                 folderExpanded.BindValueChanged(_ => updateFolderState(), true);
 
                 if (collection != null)
@@ -398,23 +408,39 @@ namespace osu.Game.Screens.Select
         }
 
         /// <summary>
-        /// A header for a folder of collections. Clicking it expands or collapses the folder. Hidden while searching.
+        /// The left padding of the icon of a folder nested inside the given number of folders (or the label of a collection nested inside one fewer).
+        /// </summary>
+        protected static float FolderIndent(int depth) => 15 + 20 * Math.Max(0, depth - 1);
+
+        /// <summary>
+        /// A folder of collections. Clicking the folder icon expands or collapses the folder, and clicking anywhere else selects it,
+        /// showing all beatmaps inside the folder's collections (including those in subfolders).
         /// </summary>
         protected partial class DrawableFolderMenuItem : ShearedDropdownMenu.ShearedMenuItem
         {
-            private readonly string folderName;
+            private readonly Guid folderId;
+
+            private readonly IReadOnlyList<Guid> ancestorFolders;
 
             private readonly BindableBool expanded = new BindableBool();
+
+            private readonly FolderExpansion ancestorsExpanded = new FolderExpansion();
 
             [Resolved]
             private CollectionFolderManager? collectionFolders { get; set; }
 
-            private SpriteIcon icon = null!;
+            private ExpandButton expandButton = null!;
+
+            private bool matchingFilter = true;
+            private bool filteringActive;
 
             public DrawableFolderMenuItem(MenuItem item)
                 : base(item)
             {
-                folderName = ((CollectionFolderFilterMenuItem)((DropdownMenuItem<CollectionFilterMenuItem>)item).Value).FolderName;
+                var folder = (CollectionFolderFilterMenuItem)((DropdownMenuItem<CollectionFilterMenuItem>)item).Value;
+
+                folderId = folder.FolderID;
+                ancestorFolders = folder.AncestorFolderIDs;
             }
 
             [BackgroundDependencyLoader]
@@ -422,15 +448,12 @@ namespace osu.Game.Screens.Select
             {
                 var content = (FolderContent)Foreground.Children.First();
 
-                content.Label.Padding = new MarginPadding { Left = 35 };
                 content.Label.Font = OsuFont.GetFont(weight: FontWeight.Bold);
-
-                content.Add(icon = new SpriteIcon
+                content.Add(expandButton = new ExpandButton
                 {
                     Anchor = Anchor.CentreLeft,
                     Origin = Anchor.CentreLeft,
-                    X = 15,
-                    Size = new Vector2(13),
+                    Action = () => expanded.Toggle(),
                 });
             }
 
@@ -439,28 +462,43 @@ namespace osu.Game.Screens.Select
                 base.LoadComplete();
 
                 if (collectionFolders != null)
-                    expanded.BindTo(collectionFolders.GetExpanded(folderName));
+                    expanded.BindTo(collectionFolders.GetExpanded(folderId));
 
-                expanded.BindValueChanged(e => icon.Icon = e.NewValue ? FontAwesome.Solid.FolderOpen : FontAwesome.Solid.Folder, true);
+                expanded.BindValueChanged(e => expandButton.Icon.Icon = e.NewValue ? FontAwesome.Solid.FolderOpen : FontAwesome.Solid.Folder, true);
+
+                ancestorsExpanded.Bind(collectionFolders, ancestorFolders);
+                ancestorsExpanded.BindValueChanged(_ => updateState(), true);
             }
 
             public override bool FilteringActive
             {
-                set => this.FadeTo(value ? 0 : 1);
+                set
+                {
+                    filteringActive = value;
+                    updateState();
+                }
             }
 
             protected override void UpdateFilteringState(bool filtered)
             {
-                // Visibility is handled by FilteringActive, as folder names should never match searches.
+                matchingFilter = filtered;
+                updateState();
             }
 
-            // Keep focus on the dropdown's search bar, so that the menu stays open when toggling folders.
-            public override bool ChangeFocusOnClick => false;
-
-            protected override bool OnClick(ClickEvent e)
+            /// <summary>
+            /// Folders inside a collapsed folder are hidden. While searching, folders are shown if their name matches.
+            /// </summary>
+            private void updateState()
             {
-                expanded.Toggle();
-                return true;
+                this.FadeTo(filteringActive ? (matchingFilter ? 1 : 0) : (ancestorsExpanded.Value ? 1 : 0));
+
+                if (Foreground.Children.FirstOrDefault() is not FolderContent content)
+                    return;
+
+                float indent = filteringActive ? 15 : FolderIndent(ancestorFolders.Count + 1);
+
+                expandButton.X = indent;
+                content.Label.Padding = new MarginPadding { Left = indent + 20 };
             }
 
             protected override Drawable CreateContent() => new FolderContent();
@@ -469,6 +507,75 @@ namespace osu.Game.Screens.Select
             {
                 public void Add(Drawable drawable) => AddInternal(drawable);
             }
+
+            /// <summary>
+            /// The folder icon, which expands or collapses the folder when clicked (without selecting it).
+            /// </summary>
+            public partial class ExpandButton : CompositeDrawable
+            {
+                public Action? Action;
+
+                public readonly SpriteIcon Icon;
+
+                public ExpandButton()
+                {
+                    Size = new Vector2(20);
+
+                    InternalChild = Icon = new SpriteIcon
+                    {
+                        Anchor = Anchor.CentreLeft,
+                        Origin = Anchor.CentreLeft,
+                        Size = new Vector2(13),
+                    };
+                }
+
+                // Keep focus on the dropdown's search bar, so that the menu stays open when toggling folders.
+                public override bool ChangeFocusOnClick => false;
+
+                protected override bool OnHover(HoverEvent e)
+                {
+                    Icon.ScaleTo(1.2f, 100, Easing.OutQuint);
+                    return true;
+                }
+
+                protected override void OnHoverLost(HoverLostEvent e) => Icon.ScaleTo(1, 100, Easing.OutQuint);
+
+                protected override bool OnClick(ClickEvent e)
+                {
+                    Action?.Invoke();
+                    return true;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether all of a set of folders are expanded (i.e. whether something nested inside all of them should be visible).
+        /// </summary>
+        protected class FolderExpansion : Bindable<bool>
+        {
+            private readonly List<IBindable<bool>> folders = new List<IBindable<bool>>();
+
+            public FolderExpansion()
+                : base(true)
+            {
+            }
+
+            public void Bind(CollectionFolderManager? manager, IEnumerable<Guid> folderIds)
+            {
+                if (manager == null)
+                    return;
+
+                foreach (var id in folderIds)
+                {
+                    var expanded = manager.GetExpanded(id).GetBoundCopy();
+                    expanded.BindValueChanged(_ => update());
+                    folders.Add(expanded);
+                }
+
+                update();
+            }
+
+            private void update() => Value = folders.All(f => f.Value);
         }
     }
 }

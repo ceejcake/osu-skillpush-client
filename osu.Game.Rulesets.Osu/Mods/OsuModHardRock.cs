@@ -13,7 +13,7 @@ namespace osu.Game.Rulesets.Osu.Mods
 {
     public class OsuModHardRock : ModHardRock, IApplicableToHitObject
     {
-        public override Type[] IncompatibleMods => base.IncompatibleMods.Append(typeof(ModMirror)).ToArray();
+        public override Type[] IncompatibleMods => base.IncompatibleMods.Append(typeof(ModMirror)).Append(typeof(OsuModHardRockCircleSize)).ToArray();
 
         public void ApplyToHitObject(HitObject hitObject)
         {

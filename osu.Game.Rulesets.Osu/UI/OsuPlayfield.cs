@@ -9,6 +9,8 @@ using osu.Framework.Allocation;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Primitives;
+using osu.Framework.Input.Bindings;
+using osu.Framework.Input.Events;
 using osu.Game.Beatmaps;
 using osu.Game.Rulesets.Judgements;
 using osu.Game.Rulesets.Objects;
@@ -52,6 +54,16 @@ namespace osu.Game.Rulesets.Osu.UI
 
         private readonly Container judgementAboveHitObjectLayer;
 
+        /// <summary>
+        /// Shows where presses which missed their circle landed.
+        /// </summary>
+        public readonly MisaimIndicatorLayer MisaimIndicators;
+
+        /// <summary>
+        /// Works out whether missed circles were missed because the aim was lagging behind or going past them.
+        /// </summary>
+        public readonly AimMissDetector AimMisses;
+
         public OsuPlayfield()
         {
             Anchor = Anchor.Centre;
@@ -59,6 +71,8 @@ namespace osu.Game.Rulesets.Osu.UI
 
             InternalChildren = new Drawable[]
             {
+                // Placed first, so that it only receives presses which no hit object handled.
+                new MisaimedPressDetector(this),
                 borderContainer = new Container
                 {
                     RelativeSizeAxes = Axes.Both,
@@ -71,7 +85,10 @@ namespace osu.Game.Rulesets.Osu.UI
                 HitObjectContainer,
                 judgementAboveHitObjectLayer = new Container { RelativeSizeAxes = Axes.Both },
                 approachCircles = new ProxyContainer { RelativeSizeAxes = Axes.Both },
+                MisaimIndicators = new MisaimIndicatorLayer(),
             };
+
+            AddInternal(AimMisses = new AimMissDetector(MisaimIndicators.GetApproachDirection, MisaimIndicators.ToLocalSpace));
 
             HitPolicy = new StartTimeOrderedHitPolicy();
 
@@ -138,6 +155,9 @@ namespace osu.Game.Rulesets.Osu.UI
 
             var osuBeatmap = (OsuBeatmap?)beatmap;
 
+            if (osuBeatmap != null)
+                MisaimIndicators.SetObjects(osuBeatmap.HitObjects);
+
             RegisterPool<HitCircle, DrawableHitCircle>(20, 100);
 
             // handle edge cases where a beatmap has a slider with many repeats.
@@ -188,6 +208,10 @@ namespace osu.Game.Rulesets.Osu.UI
 
         private void onNewResult(DrawableHitObject judgedObject, JudgementResult result)
         {
+            // Circles and slider heads which were missed because of where the cursor was.
+            if (result.Type == HitResult.Miss && judgedObject is DrawableHitCircle circle && AimMisses.Classify(circle.HitObject) is AimError error)
+                TriggerAimMiss(circle.HitObject, error);
+
             // Hitobjects that block future hits should miss previous hitobjects if they're hit out-of-order.
             hitPolicy.HandleHit(judgedObject);
 
@@ -207,6 +231,76 @@ namespace osu.Game.Rulesets.Osu.UI
         }
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => HitObjectContainer.ReceivePositionalInputAt(screenSpacePos);
+
+        /// <summary>
+        /// Finds the object a press at the current time was timed to hit: the earliest circle (or slider head) which hasn't been judged yet,
+        /// as long as the press is within its hit windows.
+        /// </summary>
+        /// <returns>The circle and how early (negative) or late (positive) the press is, or null if the press wasn't timed to hit anything.</returns>
+        private (DrawableHitCircle circle, double offset)? findPressTarget()
+        {
+            DrawableHitCircle? earliest = null;
+
+            foreach (var drawable in HitObjectContainer.AliveObjects)
+            {
+                var circle = drawable switch
+                {
+                    DrawableSlider slider => slider.HeadCircle,
+                    DrawableHitCircle hitCircle => hitCircle,
+                    _ => null,
+                };
+
+                if (circle == null || circle.Judged || circle.HitObject.HitWindows == null)
+                    continue;
+
+                if (earliest == null || circle.HitObject.StartTime < earliest.HitObject.StartTime)
+                    earliest = circle;
+            }
+
+            if (earliest == null)
+                return null;
+
+            double offset = Time.Current - earliest.HitObject.StartTime;
+
+            if (!earliest.HitObject.HitWindows.ResultFor(offset).IsHit())
+                return null;
+
+            return (earliest, offset);
+        }
+
+        /// <summary>
+        /// Reports presses which were timed to hit an object, but didn't (because the cursor wasn't on it).
+        /// </summary>
+        private partial class MisaimedPressDetector : Drawable, IKeyBindingHandler<OsuAction>
+        {
+            private readonly OsuPlayfield playfield;
+
+            public MisaimedPressDetector(OsuPlayfield playfield)
+            {
+                this.playfield = playfield;
+            }
+
+            public bool OnPressed(KeyBindingPressEvent<OsuAction> e)
+            {
+                if (e.Repeat || (e.Action != OsuAction.LeftButton && e.Action != OsuAction.RightButton))
+                    return false;
+
+                // Hit objects receive presses first, so a press reaching here didn't hit anything.
+                if (playfield.findPressTarget() is var (circle, offset))
+                {
+                    playfield.TriggerMisaimedPress(circle.HitObject, offset);
+                    playfield.MisaimIndicators.ShowMisaim(circle.HitObject, e.ScreenSpaceMousePosition);
+                    playfield.AimMisses.AddMisaimedPress(circle.HitObject, e.ScreenSpaceMousePosition);
+                }
+
+                // Never handled, so as to not interfere with anything else.
+                return false;
+            }
+
+            public void OnReleased(KeyBindingReleaseEvent<OsuAction> e)
+            {
+            }
+        }
 
         private OsuResumeOverlay.OsuResumeOverlayInputBlocker? resumeInputBlocker;
 

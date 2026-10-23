@@ -112,6 +112,69 @@ namespace osu.Game.Tests.Visual.UserInterface
         }
 
         [Test]
+        public void TestScoreV2DefaultSwapsOfferedMod()
+        {
+            ModState state<T>() where T : Mod => modSelectOverlay.AllAvailableMods.Single(s => s.Mod is T);
+
+            // This scene has its own configuration, so the game-wide default is driven directly here.
+            // The real setting is checked by TestSceneScoreV2Default.
+            AddStep("default off", () => ScoringFormulaDefaults.ScoreV2ByDefault.Value = false);
+            createScreen();
+            AddStep("show", () => modSelectOverlay.Show());
+
+            AddUntilStep("score v2 offered", () => state<OsuModScoreV2>().ValidForSelection.Value && !state<OsuModLazerScoring>().ValidForSelection.Value);
+
+            AddStep("default on", () => ScoringFormulaDefaults.ScoreV2ByDefault.Value = true);
+            AddUntilStep("lazer scoring offered instead", () => !state<OsuModScoreV2>().ValidForSelection.Value && state<OsuModLazerScoring>().ValidForSelection.Value);
+
+            AddStep("default off", () => ScoringFormulaDefaults.ScoreV2ByDefault.Value = false);
+            AddUntilStep("score v2 offered again", () => state<OsuModScoreV2>().ValidForSelection.Value && !state<OsuModLazerScoring>().ValidForSelection.Value);
+        }
+
+        [Test]
+        public void TestArrowKeysChangePitch()
+        {
+            double pitch() => configManager.Get<double>(OsuSetting.MusicPitch);
+
+            AddStep("reset pitch", () => configManager.SetValue(OsuSetting.MusicPitch, 1.0));
+            createScreen();
+            AddStep("show", () => modSelectOverlay.Show());
+
+            AddStep("press right", () => InputManager.Key(Key.Right));
+            AddAssert("pitch up", pitch, () => Is.EqualTo(1.05).Within(0.0001));
+
+            AddStep("press up", () => InputManager.Key(Key.Up));
+            AddAssert("pitch up again", pitch, () => Is.EqualTo(1.10).Within(0.0001));
+
+            AddStep("press left twice", () => InputManager.Key(Key.Left));
+            AddStep("press down", () => InputManager.Key(Key.Down));
+            AddAssert("pitch back down", pitch, () => Is.EqualTo(1.0).Within(0.0001));
+
+            AddStep("search", () => modSelectOverlay.SearchTerm = "double");
+            AddStep("press right while searching", () => InputManager.Key(Key.Right));
+            AddAssert("still changes pitch", pitch, () => Is.EqualTo(1.05).Within(0.0001));
+            AddStep("clear search", () => modSelectOverlay.SearchTerm = string.Empty);
+
+            AddStep("press ctrl+right", () =>
+            {
+                InputManager.PressKey(Key.ControlLeft);
+                InputManager.Key(Key.Right);
+                InputManager.ReleaseKey(Key.ControlLeft);
+            });
+            AddAssert("modifiers don't change pitch", pitch, () => Is.EqualTo(1.05).Within(0.0001));
+
+            AddStep("select double time", () => SelectedMods.Value = new[] { new OsuModDoubleTime() });
+            // Opened as it is when selecting a mod with settings, which (unlike opening it by hovering) stays open when the mouse is elsewhere.
+            AddStep("open customisation", () => modSelectOverlay.ChildrenOfType<ModCustomisationPanel>().Single().ExpandedState.Value = ModCustomisationPanel.ModCustomisationPanelState.ExpandedByMod);
+            AddAssert("customisation open", () => modSelectOverlay.ChildrenOfType<ModCustomisationPanel>().Single().ExpandedState.Value,
+                () => Is.EqualTo(ModCustomisationPanel.ModCustomisationPanelState.ExpandedByMod));
+            AddStep("press right", () => InputManager.Key(Key.Right));
+            AddAssert("pitch unchanged while customising", pitch, () => Is.EqualTo(1.05).Within(0.0001));
+
+            AddStep("reset pitch", () => configManager.SetValue(OsuSetting.MusicPitch, 1.0));
+        }
+
+        [Test]
         public void TestModdedStarRatingSortingToggle()
         {
             AddStep("turn off", () => configManager.SetValue(OsuSetting.ModdedStarRatingSorting, false));

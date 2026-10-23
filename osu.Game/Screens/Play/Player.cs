@@ -228,6 +228,17 @@ namespace osu.Game.Screens.Play
             ScoreProcessor.NewJudgement += _ => ScoreProcessor.PopulateScore(Score.ScoreInfo);
             ScoreProcessor.OnResetFromReplayFrame += () => ScoreProcessor.PopulateScore(Score.ScoreInfo);
 
+            ScoreProcessor.NewJudgement += r =>
+            {
+                if (r.Type == HitResult.Miss)
+                    misses.Add(r);
+            };
+            ScoreProcessor.JudgementReverted += r => misses.Remove(r);
+
+            // The misses of the last playthrough are kept until a different beatmap is played.
+            if (statics.Get<LastPlaythroughMisses>(Static.LastPlaythroughMisses) is LastPlaythroughMisses last && last.BeatmapID != Beatmap.Value.BeatmapInfo.ID)
+                statics.SetValue<LastPlaythroughMisses>(Static.LastPlaythroughMisses, null);
+
             gameActive.BindValueChanged(_ => updatePauseOnFocusLostState(), true);
         }
 
@@ -244,12 +255,18 @@ namespace osu.Game.Screens.Play
         /// </summary>
         private Bindable<double> musicPitch = null!;
 
+        private Bindable<bool> misaimIndicator = null!;
+
+        private Bindable<bool> misaimIndicatorDetails = null!;
+
         private MusicPitchShift? musicPitchShift;
 
         [BackgroundDependencyLoader(true)]
         private void load(OsuConfigManager config, OsuGameBase game, CancellationToken cancellationToken)
         {
             musicPitch = config.GetBindable<double>(OsuSetting.MusicPitch);
+            misaimIndicator = config.GetBindable<bool>(OsuSetting.MisaimIndicator);
+            misaimIndicatorDetails = config.GetBindable<bool>(OsuSetting.MisaimIndicatorDetails);
 
             var gameplayMods = Mods.Value.Select(m => m.DeepClone()).ToArray();
 
@@ -945,11 +962,37 @@ namespace osu.Game.Screens.Play
             handleGameplayCompleted();
         }
 
+        /// <summary>
+        /// The misses so far in this play.
+        /// </summary>
+        private readonly List<JudgementResult> misses = new List<JudgementResult>();
+
+        /// <summary>
+        /// Whether a full playthrough in this player replaces the misses shown on the practice strain graph (<see cref="Static.LastPlaythroughMisses"/>).
+        /// </summary>
+        protected virtual bool RecordsPlaythroughMisses => true;
+
+        /// <summary>
+        /// Remembers where the misses were, if this was a full playthrough of the beatmap played by the user
+        /// (not seeked through, started part way through, or a replay).
+        /// </summary>
+        private void recordPlaythroughMisses()
+        {
+            if (!RecordsPlaythroughMisses || GameplayInvalidatedBySeeking || DrawableRuleset.HasReplayLoaded.Value || !ScoreProcessor.HasCompleted.Value)
+                return;
+
+            statics.SetValue<LastPlaythroughMisses>(Static.LastPlaythroughMisses, new LastPlaythroughMisses(
+                Beatmap.Value.BeatmapInfo.ID,
+                misses.Select(r => r.HitObject.StartTime).OrderBy(t => t).ToArray()));
+        }
+
         private void handleGameplayCompleted()
         {
             // Only show the completion screen if the player hasn't failed
             if (GameplayState.HasFailed)
                 return;
+
+            recordPlaythroughMisses();
 
             GameplayState.HasPassed = true;
 
@@ -1055,6 +1098,19 @@ namespace osu.Game.Screens.Play
             {
                 case GlobalAction.TogglePracticeCheckpoint:
                     return togglePracticeCheckpoint();
+
+                case GlobalAction.ToggleMisaimIndicator:
+                    misaimIndicator.Value = !misaimIndicator.Value;
+                    return true;
+
+                case GlobalAction.ToggleMisaimIndicatorDetails:
+                    misaimIndicatorDetails.Value = !misaimIndicatorDetails.Value;
+
+                    // Details are shown on the indicator, so turning them on should show it.
+                    if (misaimIndicatorDetails.Value)
+                        misaimIndicator.Value = true;
+
+                    return true;
 
                 case GlobalAction.ToggleStrainGraph:
                     if (!Configuration.AllowUserInteraction || !LoadedBeatmapSuccessfully)

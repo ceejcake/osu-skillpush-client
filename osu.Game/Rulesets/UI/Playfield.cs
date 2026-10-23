@@ -43,6 +43,29 @@ namespace osu.Game.Rulesets.UI
         public event Action<JudgementResult> RevertResult;
 
         /// <summary>
+        /// Invoked when a key press was timed to hit an object, but didn't hit it (e.g. because the cursor wasn't on it).
+        /// Provides the object and how early (negative) or late (positive) the press was, in milliseconds.
+        /// </summary>
+        public event Action<HitObject, double> MisaimedPress;
+
+        /// <summary>
+        /// Reports a key press which was timed to hit an object, but didn't hit it.
+        /// </summary>
+        /// <param name="hitObject">The object the press was timed for.</param>
+        /// <param name="timeOffset">How early (negative) or late (positive) the press was, in milliseconds.</param>
+        protected void TriggerMisaimedPress(HitObject hitObject, double timeOffset) => MisaimedPress?.Invoke(hitObject, timeOffset);
+
+        /// <summary>
+        /// Invoked when an object was missed because the aim was lagging behind it or going past it.
+        /// </summary>
+        public event Action<HitObject, AimError> AimMiss;
+
+        /// <summary>
+        /// Reports an object which was missed because of aim.
+        /// </summary>
+        protected void TriggerAimMiss(HitObject hitObject, AimError error) => AimMiss?.Invoke(hitObject, error);
+
+        /// <summary>
         /// The <see cref="DrawableHitObject"/> contained in this Playfield.
         /// </summary>
         public HitObjectContainer HitObjectContainer => hitObjectContainerLazy.Value;

@@ -24,7 +24,14 @@ namespace osu.Game.Rulesets.Osu.Mods
     {
         public override LocalisableString Description => "Score the way osu!stable's Score V2 did.";
         public override ModType Type => ModType.Conversion;
-        public override bool UserPlayable => true;
+
+        /// <summary>
+        /// While Score V2 is the default (see <see cref="ScoringFormulaDefaults.ScoreV2ByDefault"/>), selecting it would do
+        /// nothing, so <see cref="OsuModLazerScoring"/> is offered in its place.
+        /// </summary>
+        public override bool UserPlayable => !ScoringFormulaDefaults.ScoreV2ByDefault.Value;
+
+        public override Type[] IncompatibleMods => new[] { typeof(OsuModLazerScoring) };
 
         /// <summary>
         /// The share of the score earned by keeping combo. The rest is earned by accuracy.

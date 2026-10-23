@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using osu.Framework.Allocation;
 using osu.Framework.Extensions;
 using osu.Framework.Extensions.Color4Extensions;
@@ -14,6 +15,7 @@ using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.UserInterface;
 using osu.Framework.Input.Events;
 using osu.Framework.Localisation;
+using osu.Game.Beatmaps;
 using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
@@ -23,6 +25,7 @@ using osu.Game.Localisation;
 using osu.Game.Overlays;
 using osuTK;
 using osuTK.Graphics;
+using Realms;
 
 namespace osu.Game.Collections
 {
@@ -33,6 +36,7 @@ namespace osu.Game.Collections
     {
         private const float item_height = 45;
         private const float button_width = item_height * 0.75f;
+        private const float drag_handle_width = 20;
 
         protected TextBox TextBox => content.TextBox;
 
@@ -62,7 +66,38 @@ namespace osu.Game.Collections
             CornerExponent = 2.5f;
         }
 
-        protected override Drawable CreateContent() => content = new ItemContent(Model);
+        protected override Drawable CreateContent() => content = new ItemContent(Model)
+        {
+            FolderPopoverStateChanged = open =>
+            {
+                folderPopoverOpen = open;
+                updateVisibility();
+            }
+        };
+
+        private bool inCurrentView = true;
+
+        /// <summary>
+        /// Whether the collection is inside the folder being viewed. Collections outside of it are only shown while searching.
+        /// </summary>
+        public bool InCurrentView
+        {
+            get => inCurrentView;
+            set
+            {
+                if (inCurrentView == value)
+                    return;
+
+                inCurrentView = value;
+                updateVisibility();
+            }
+        }
+
+        /// <summary>
+        /// While the folder popover is open, the collection is kept visible even if it was moved out of the folder being viewed,
+        /// so that the popover doesn't disappear while in use.
+        /// </summary>
+        private bool folderPopoverOpen;
 
         /// <summary>
         /// The main content of the <see cref="DrawableCollectionListItem"/>.
@@ -72,6 +107,8 @@ namespace osu.Game.Collections
             private readonly Live<BeatmapCollection> collection;
 
             public ItemTextBox TextBox { get; private set; } = null!;
+
+            public Action<bool>? FolderPopoverStateChanged;
 
             public ItemContent(Live<BeatmapCollection> collection)
             {
@@ -95,10 +132,27 @@ namespace osu.Game.Collections
                         }
                         : Empty(),
                     collection.IsManaged
+                        ? new CollectionDragHandle(collection.ID, () => collection.PerformRead(c => c.IsValid ? c.Name : string.Empty))
+                        {
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.CentreLeft,
+                        }
+                        : Empty(),
+                    collection.IsManaged
                         ? new FolderButton(collection)
                         {
                             Anchor = Anchor.CentreLeft,
                             Origin = Anchor.CentreLeft,
+                            X = drag_handle_width,
+                            PopoverStateChanged = open => FolderPopoverStateChanged?.Invoke(open),
+                        }
+                        : Empty(),
+                    collection.IsManaged
+                        ? new AddBeatmapIdsButton(collection)
+                        {
+                            Anchor = Anchor.CentreLeft,
+                            Origin = Anchor.CentreLeft,
+                            X = drag_handle_width + button_width,
                         }
                         : Empty(),
                     new Container
@@ -106,7 +160,7 @@ namespace osu.Game.Collections
                         RelativeSizeAxes = Axes.Both,
                         Padding = new MarginPadding
                         {
-                            Left = collection.IsManaged ? button_width : 0,
+                            Left = collection.IsManaged ? drag_handle_width + button_width * 2 : 0,
                             Right = collection.IsManaged ? button_width : 0
                         },
                         Children = new Drawable[]
@@ -162,13 +216,36 @@ namespace osu.Game.Collections
                 updateFolderText();
             }
 
+            /// <summary>
+            /// Shows how many beatmaps are in the collection, and how many of those aren't available locally
+            /// (which song select can't show, e.g. because they haven't been downloaded).
+            /// </summary>
+            public void RefreshCount()
+            {
+                if (!collection.IsManaged)
+                    return;
+
+                var (total, missing) = collection.PerformRead(c =>
+                {
+                    if (!c.IsValid)
+                        return (0, 0);
+
+                    var beatmaps = c.Realm!.All<BeatmapInfo>();
+                    return (c.BeatmapMD5Hashes.Count, c.BeatmapMD5Hashes.Count(h => !beatmaps.Filter("MD5Hash == $0 AND BeatmapSet.DeletePending == false", h).Any()));
+                });
+
+                countText.Text = missing > 0
+                    ? LocalisableString.Interpolate($"{CommonStrings.ItemsCount(total)} ({missing} not downloaded)")
+                    : CommonStrings.ItemsCount(total);
+            }
+
             private void updateFolderText()
             {
                 if (folderText == null)
                     return;
 
                 var itemFolders = collection.PerformRead(c => c.IsValid ? collectionFolders?.GetFolders(c.ID) : null);
-                folderText.Text = itemFolders?.Count > 0 ? $"in {string.Join(", ", itemFolders)}" : string.Empty;
+                folderText.Text = itemFolders?.Count > 0 ? $"in {string.Join(", ", itemFolders.Select(f => f.Name))}" : string.Empty;
             }
 
             protected override void Dispose(bool isDisposing)
@@ -227,7 +304,7 @@ namespace osu.Game.Collections
                     // but that subscription does not only cover *changes to the set of collections* (i.e. addition/removal/rearrangement of collections),
                     // but also covers *changes to the properties of collections*, which `BeatmapMD5Hashes` is one.
                     // when a collection item changes due to `BeatmapMD5Hashes` changing, the list item is deleted and re-inserted, thus guaranteeing this to work correctly.
-                    countText.Text = CommonStrings.ItemsCount(collection.PerformRead(c => c.BeatmapMD5Hashes.Count));
+                    RefreshCount();
                 }
                 else
                 {
@@ -237,11 +314,21 @@ namespace osu.Game.Collections
         }
 
         /// <summary>
+        /// Recounts how many of the collection's beatmaps are available locally.
+        /// </summary>
+        public void RefreshCount() => content.TextBox.RefreshCount();
+
+        /// <summary>
         /// Shows a popover to move the collection into a folder.
         /// </summary>
         public partial class FolderButton : IconButton, IHasPopover
         {
             private readonly Live<BeatmapCollection> collection;
+
+            /// <summary>
+            /// Invoked with whether the popover is open whenever it opens or closes.
+            /// </summary>
+            public Action<bool>? PopoverStateChanged;
 
             public FolderButton(Live<BeatmapCollection> collection)
             {
@@ -253,7 +340,32 @@ namespace osu.Game.Collections
                 Action = this.ShowPopover;
             }
 
-            public Popover GetPopover() => new CollectionFolderPopover(collection.ID);
+            public Popover GetPopover()
+            {
+                var popover = new CollectionFolderPopover(collection.ID);
+                popover.State.BindValueChanged(state => PopoverStateChanged?.Invoke(state.NewValue == Visibility.Visible));
+                return popover;
+            }
+        }
+
+        /// <summary>
+        /// Shows a popover to add beatmaps to the collection from a pasted list of beatmap IDs.
+        /// </summary>
+        public partial class AddBeatmapIdsButton : IconButton, IHasPopover
+        {
+            private readonly Live<BeatmapCollection> collection;
+
+            public AddBeatmapIdsButton(Live<BeatmapCollection> collection)
+            {
+                this.collection = collection;
+
+                Icon = FontAwesome.Solid.Paste;
+                TooltipText = "Add beatmap IDs";
+                Size = new Vector2(button_width, item_height);
+                Action = this.ShowPopover;
+            }
+
+            public Popover GetPopover() => new AddBeatmapIdsPopover(collection);
         }
 
         public partial class DeleteButton : OsuClickableContainer
@@ -343,14 +455,30 @@ namespace osu.Game.Collections
             set
             {
                 matchingFilter = value;
-
-                if (matchingFilter)
-                    this.FadeIn(200);
-                else
-                    Hide();
+                updateVisibility();
             }
         }
 
-        public bool FilteringActive { get; set; }
+        private bool filteringActive;
+
+        public bool FilteringActive
+        {
+            get => filteringActive;
+            set
+            {
+                filteringActive = value;
+                updateVisibility();
+            }
+        }
+
+        private void updateVisibility()
+        {
+            bool visible = matchingFilter && (filteringActive || inCurrentView || folderPopoverOpen);
+
+            if (visible)
+                this.FadeIn(200);
+            else
+                Hide();
+        }
     }
 }

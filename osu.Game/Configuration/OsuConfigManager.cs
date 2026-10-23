@@ -47,6 +47,11 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.HitErrorBarSizeOverride, false);
             SetDefault(OsuSetting.HitErrorBarSize, 1f, 0.25f, 3f, 0.05f);
+            SetDefault(OsuSetting.HitErrorShowPressedMisses, true);
+            SetDefault(OsuSetting.MisaimIndicator, false);
+            SetDefault(OsuSetting.MisaimIndicatorDetails, false);
+            SetDefault(OsuSetting.ScoreV2ByDefault, false);
+            SetDefault(OsuSetting.AimFeedbackGlow, true);
 
             SetDefault(OsuSetting.BeatmapDetailTab, BeatmapDetailTab.Local);
             SetDefault(OsuSetting.BeatmapLeaderboardSortMode, LeaderboardSortMode.Score);
@@ -290,6 +295,18 @@ namespace osu.Game.Configuration
                     value: disabledState ? CommonStrings.Disabled.ToLower() : CommonStrings.Enabled.ToLower(),
                     shortcut: LookupKeyBindings(GlobalAction.ToggleGameplayMouseButtons))
                 ),
+                new TrackedSetting<bool>(OsuSetting.MisaimIndicator, state => new SettingDescription(
+                    rawValue: state,
+                    name: GlobalActionKeyBindingStrings.ToggleMisaimIndicator,
+                    value: state ? CommonStrings.Enabled.ToLower() : CommonStrings.Disabled.ToLower(),
+                    shortcut: LookupKeyBindings(GlobalAction.ToggleMisaimIndicator))
+                ),
+                new TrackedSetting<bool>(OsuSetting.MisaimIndicatorDetails, state => new SettingDescription(
+                    rawValue: state,
+                    name: GlobalActionKeyBindingStrings.ToggleMisaimIndicatorDetails,
+                    value: state ? CommonStrings.Enabled.ToLower() : CommonStrings.Disabled.ToLower(),
+                    shortcut: LookupKeyBindings(GlobalAction.ToggleMisaimIndicatorDetails))
+                ),
                 new TrackedSetting<bool>(OsuSetting.GameplayLeaderboard, state => new SettingDescription(
                     rawValue: state,
                     name: GlobalActionKeyBindingStrings.ToggleInGameLeaderboard,
@@ -527,5 +544,30 @@ namespace osu.Game.Configuration
         /// The size of bar hit error meters when <see cref="HitErrorBarSizeOverride"/> is enabled.
         /// </summary>
         HitErrorBarSize,
+
+        /// <summary>
+        /// Whether key presses which didn't hit their object (misaimed, or too early to hit) are shown on bar hit error meters, as red lines.
+        /// </summary>
+        HitErrorShowPressedMisses,
+
+        /// <summary>
+        /// Whether to show where presses which missed their circle (because the cursor was off it) landed, relative to the circle.
+        /// </summary>
+        MisaimIndicator,
+
+        /// <summary>
+        /// Whether the misaim indicator also shows the missed circle, a line to the press, and how far over or under aimed the press was.
+        /// </summary>
+        MisaimIndicatorDetails,
+
+        /// <summary>
+        /// Whether plays are scored the way osu!stable's Score V2 did unless the Lazer Scoring mod is selected.
+        /// </summary>
+        ScoreV2ByDefault,
+
+        /// <summary>
+        /// Whether the sides of the screen glow when objects are missed because of aim: red when lagging behind, blue when going too fast.
+        /// </summary>
+        AimFeedbackGlow,
     }
 }

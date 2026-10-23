@@ -25,5 +25,18 @@ namespace osu.Game.Tests.NonVisual
         [TestCase("", new int[0])]
         public void TestParse(string input, int[] expected)
             => Assert.That(OsuCollectorImporter.ParseBeatmapIds(input), Is.EqualTo(expected));
+
+        [TestCase("123 456", 0)]
+        [TestCase("123 123 456", 1)]
+        [TestCase("123 https://osu.ppy.sh/b/123 https://osu.ppy.sh/beatmapsets/1#osu/123 456 456", 3)]
+        public void TestDuplicatesCounted(string input, int expectedDuplicates)
+        {
+            OsuCollectorImporter.ParseBeatmapIds(input, out int duplicates);
+            Assert.That(duplicates, Is.EqualTo(expectedDuplicates));
+        }
+
+        [Test]
+        public void TestPastedLinesJoined()
+            => Assert.That(OsuCollectorImporter.JoinPastedLines("123\r\n456\n\n789\t12\r\n"), Is.EqualTo("123 456 789 12"));
     }
 }

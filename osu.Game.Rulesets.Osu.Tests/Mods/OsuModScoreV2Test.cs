@@ -169,14 +169,80 @@ namespace osu.Game.Rulesets.Osu.Tests.Mods
             }
         }
 
-        private static long scoreFor(HitResult[] results, bool scoreV2)
+        [Test]
+        public void TestScoreV2CanBeTheDefault()
+        {
+            var results = missAt(object_count / 2);
+
+            long standard = scoreFor(results, scoreV2: false);
+            long scoreV2 = scoreFor(results, scoreV2: true);
+
+            try
+            {
+                ScoringFormulaDefaults.ScoreV2ByDefault.Value = true;
+
+                Assert.That(scoreFor(results, Array.Empty<Mod>()), Is.EqualTo(scoreV2), "a play without mods should be scored as Score V2 while it is the default");
+                Assert.That(scoreFor(results, new OsuModLazerScoring()), Is.EqualTo(standard), "Lazer Scoring should give the usual scoring back");
+
+                Assert.That(new OsuModScoreV2().UserPlayable, Is.False, "Score V2 would do nothing, so it shouldn't be offered");
+                Assert.That(new OsuModLazerScoring().UserPlayable, Is.True);
+            }
+            finally
+            {
+                ScoringFormulaDefaults.ScoreV2ByDefault.Value = false;
+            }
+
+            Assert.That(scoreFor(results, new OsuModLazerScoring()), Is.EqualTo(standard), "Lazer Scoring does nothing when it isn't needed");
+            Assert.That(new OsuModScoreV2().UserPlayable, Is.True);
+            Assert.That(new OsuModLazerScoring().UserPlayable, Is.False);
+        }
+
+        [Test]
+        public void TestDefaultIsDecidedWhenThePlayIsSetUp()
+        {
+            var results = missAt(object_count / 2);
+            var beatmap = createBeatmap();
+
+            var processor = new ScoreProcessor(new OsuRuleset());
+
+            try
+            {
+                // Turned on before the beatmap is applied, as happens when the setting is changed before a play.
+                ScoringFormulaDefaults.ScoreV2ByDefault.Value = true;
+                processor.ApplyBeatmap(beatmap);
+            }
+            finally
+            {
+                // Turned off again part way through, which a play in progress must not react to.
+                ScoringFormulaDefaults.ScoreV2ByDefault.Value = false;
+            }
+
+            for (int i = 0; i < results.Length; i++)
+                processor.ApplyResult(new JudgementResult(beatmap.HitObjects[i], beatmap.HitObjects[i].Judgement) { Type = results[i] });
+
+            Assert.That(processor.TotalScore.Value, Is.EqualTo(scoreFor(results, scoreV2: true)));
+        }
+
+        [Test]
+        public void TestLazerScoringIsOfferedNextToScoreV2()
+        {
+            var mods = new OsuRuleset().GetModsFor(ModType.Conversion).ToList();
+
+            Assert.That(mods.FindIndex(m => m is OsuModLazerScoring), Is.EqualTo(mods.FindIndex(m => m is OsuModScoreV2) + 1));
+            Assert.That(new OsuModLazerScoring().Icon, Is.EqualTo(new OsuModScoreV2().Icon));
+            Assert.That(new OsuModLazerScoring(), Is.InstanceOf<IHasUpsideDownIcon>());
+        }
+
+        private static long scoreFor(HitResult[] results, bool scoreV2) => scoreFor(results, scoreV2 ? new Mod[] { new OsuModScoreV2() } : Array.Empty<Mod>());
+
+        private static long scoreFor(HitResult[] results, params Mod[] mods)
         {
             var beatmap = createBeatmap();
 
             var processor = new ScoreProcessor(new OsuRuleset());
 
             // The mods have to be in place before the beatmap is applied, as the maximum score is worked out from it.
-            processor.Mods.Value = scoreV2 ? new Mod[] { new OsuModScoreV2() } : Array.Empty<Mod>();
+            processor.Mods.Value = mods;
             processor.ApplyBeatmap(beatmap);
 
             for (int i = 0; i < results.Length; i++)

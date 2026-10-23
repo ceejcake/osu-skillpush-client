@@ -72,6 +72,9 @@ namespace osu.Game.Screens.Select
         [Resolved]
         private ModdedStarRatingCache? starRatingCache { get; set; }
 
+        [Resolved]
+        private CollectionFolderManager? collectionFolders { get; set; }
+
         private ModdedStarRatingCache.Tracking? starRatingTracking;
 
         private readonly Bindable<bool> moddedStarRatingSorting = new Bindable<bool>();
@@ -271,6 +274,9 @@ namespace osu.Game.Screens.Select
             sortDropdown.Current.BindValueChanged(_ => updateCriteria());
             groupDropdown.Current.BindValueChanged(_ => updateCriteria());
             configCollectionFilter.BindValueChanged(_ => updateCriteria());
+            if (collectionFolders != null)
+                collectionFolders.FoldersChanged += onFoldersChanged;
+
             collectionsSubscription = realm.RegisterForNotifications(r => r.All<BeatmapCollection>(), (_, changeSet) =>
             {
                 if (changeSet != null && groupDropdown.Current.Value.Value == GroupMode.Collections)
@@ -298,6 +304,9 @@ namespace osu.Game.Screens.Select
             base.Dispose(isDisposing);
             collectionsSubscription?.Dispose();
 
+            if (collectionFolders != null)
+                collectionFolders.FoldersChanged -= onFoldersChanged;
+
             if (starRatingCache != null)
                 starRatingCache.RatingsChanged -= onStarRatingsChanged;
 
@@ -320,6 +329,32 @@ namespace osu.Game.Screens.Select
         }
 
         /// <summary>
+        /// Returns all beatmaps inside the collections of a folder (including those in subfolders),
+        /// or null if the folder doesn't exist (in which case beatmaps aren't filtered by collection at all).
+        /// </summary>
+        private IEnumerable<string>? getFolderBeatmapMD5Hashes(Guid folderId)
+        {
+            if (collectionFolders?.GetFolder(folderId) == null)
+                return null;
+
+            var collectionIds = collectionFolders.GetCollections(folderId, recursive: true);
+
+            return realm.Run(r => collectionIds.Select(id => r.Find<BeatmapCollection>(id))
+                                               .OfType<BeatmapCollection>()
+                                               .SelectMany(c => c.BeatmapMD5Hashes)
+                                               .ToImmutableHashSet());
+        }
+
+        private void onFoldersChanged()
+        {
+            // The contents of the selected folder may have changed.
+            if (CollectionFolderManager.TryParseFolderFilterValue(configCollectionFilter.Value, out _))
+                Scheduler.AddOnce(updateCriteriaForFolders);
+        }
+
+        private void updateCriteriaForFolders() => updateCriteria(clearScopedSet: false);
+
+        /// <summary>
         /// Creates a <see cref="FilterCriteria"/> based on the current state of the controls.
         /// </summary>
         public FilterCriteria CreateCriteria()
@@ -331,6 +366,8 @@ namespace osu.Game.Screens.Select
 
             if (Guid.TryParse(configCollectionFilter.Value, out var collectionId))
                 collectionBeatmapMD5Hashes = realm.Run(r => r.Find<BeatmapCollection>(collectionId)?.BeatmapMD5Hashes.ToImmutableHashSet());
+            else if (CollectionFolderManager.TryParseFolderFilterValue(configCollectionFilter.Value, out var folderId))
+                collectionBeatmapMD5Hashes = getFolderBeatmapMD5Hashes(folderId.Value);
 
             var criteria = new FilterCriteria
             {

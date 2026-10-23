@@ -283,7 +283,7 @@ namespace osu.Game.Scoring
                                           .Filter($"{nameof(ScoreInfo.DeletePending)} == false && {nameof(ScoreInfo.PP)} != null && {nameof(ScoreInfo.Ruleset)}.{nameof(RulesetInfo.ShortName)} == $0", shortName)
                                           .AsEnumerable()
                                           .Where(s => s.BeatmapInfo != null && s.Rank != ScoreRank.F && IsLocalPlayerScore(s) && (unranked || IsRankedOnline(s)))
-                                          .Select(s => new PerformanceEntry(s.ID, getBeatmapKey(s.BeatmapInfo!), s.PP!.Value, s.Accuracy))
+                                          .Select(s => new PerformanceEntry(s.ID, getBeatmapKey(s.BeatmapInfo!), s.PP!.Value, s.Accuracy, s.Date))
                                           .ToList());
 
             (double totalPerformance, double accuracy, var counted) = LocalPerformanceSummary.Calculate(entries);
@@ -294,7 +294,14 @@ namespace osu.Game.Scoring
                                                  .Select(c => new LocalTopPlay(c.score!.Detach(), c.Performance, c.weight))
                                                  .ToArray());
 
-            var result = new LocalPerformanceSummary(totalPerformance, accuracy, counted.Count, topPlays, pendingScores);
+            var todayPlays = LocalPerformanceSummary.SelectTodayTopPlays(entries, LocalPerformanceSummary.GetDayStart(DateTimeOffset.Now));
+
+            var recentTopPlays = realm.Run(r => todayPlays.Select(e => (score: r.Find<ScoreInfo>(e.ScoreID), e.Performance))
+                                                          .Where(c => c.score != null)
+                                                          .Select(c => new LocalTopPlay(c.score!.Detach(), c.Performance, 1))
+                                                          .ToArray());
+
+            var result = new LocalPerformanceSummary(totalPerformance, accuracy, counted.Count, topPlays, pendingScores, recentTopPlays);
 
             Schedule(() =>
             {

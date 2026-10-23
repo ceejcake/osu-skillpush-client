@@ -23,6 +23,7 @@ using osu.Framework.Input.Events;
 using osu.Framework.Logging;
 using osu.Framework.Utils;
 using osu.Game.Beatmaps;
+using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Graphics.UserInterface;
@@ -55,6 +56,11 @@ namespace osu.Game.Screens.Play
 
         [Resolved]
         private OsuColour colours { get; set; }
+
+        [Resolved]
+        private SessionStatics statics { get; set; }
+
+        private OsuSpriteText missesText;
 
         private StrainGraph graph;
         private LoadingSpinner loading;
@@ -118,6 +124,12 @@ namespace osu.Game.Screens.Play
                                     Font = OsuFont.Torus.With(size: 14),
                                     Colour = new Color4(255, 190, 100, 255),
                                 },
+                                missesText = new OsuSpriteText
+                                {
+                                    Font = OsuFont.Torus.With(size: 14, weight: FontWeight.SemiBold),
+                                    Colour = StrainGraph.MISS_COLOUR,
+                                    Alpha = 0,
+                                },
                                 new Container
                                 {
                                     RelativeSizeAxes = Axes.X,
@@ -155,11 +167,37 @@ namespace osu.Game.Screens.Play
         protected override void PopIn()
         {
             beginCalculation();
+            updateMisses();
 
             this.FadeIn(200, Easing.OutQuint);
         }
 
         protected override void PopOut() => this.FadeOut(200, Easing.OutQuint);
+
+        /// <summary>
+        /// Shows where the misses were in the last full playthrough of this beatmap.
+        /// </summary>
+        private void updateMisses()
+        {
+            var last = statics.Get<LastPlaythroughMisses>(Static.LastPlaythroughMisses);
+
+            if (last == null || last.BeatmapID != beatmap.Value.BeatmapInfo.ID)
+            {
+                graph.MissTimes = Array.Empty<double>();
+                missesText.Alpha = 0;
+                return;
+            }
+
+            graph.MissTimes = last.MissTimes;
+
+            missesText.Alpha = 1;
+            missesText.Text = last.MissTimes.Count switch
+            {
+                0 => "No misses in your last full playthrough.",
+                1 => "Red line: the miss in your last full playthrough.",
+                _ => $"Red lines: the {last.MissTimes.Count} misses in your last full playthrough.",
+            };
+        }
 
         protected override bool OnClick(ClickEvent e)
         {
@@ -263,6 +301,25 @@ namespace osu.Game.Screens.Play
 
             public Color4 HighlightColour { get; set; } = Color4.Yellow;
 
+            public static readonly Color4 MISS_COLOUR = new Color4(255, 80, 80, 255);
+
+            private IReadOnlyList<double> missTimes = Array.Empty<double>();
+
+            /// <summary>
+            /// Times (in beatmap time) to mark as misses.
+            /// </summary>
+            public IReadOnlyList<double> MissTimes
+            {
+                get => missTimes;
+                set
+                {
+                    missTimes = value;
+                    updateMissMarkers();
+                }
+            }
+
+            private readonly Container<Box> missMarkers;
+
             [Resolved]
             private IGameplayClock gameplayClock { get; set; }
 
@@ -297,6 +354,7 @@ namespace osu.Game.Screens.Play
                         Colour = new Color4(10, 10, 12, 255),
                     },
                     bars = new Container<Box> { RelativeSizeAxes = Axes.Both },
+                    missMarkers = new Container<Box> { RelativeSizeAxes = Axes.Both },
                     currentTimeMarker = new Box
                     {
                         RelativeSizeAxes = Axes.Y,
@@ -333,16 +391,45 @@ namespace osu.Game.Screens.Play
                 };
             }
 
+            private void updateMissMarkers()
+            {
+                missMarkers.Clear();
+
+                if (sections.Count < 2)
+                    return;
+
+                foreach (double time in missTimes)
+                {
+                    float progress = (float)((time - firstTime) / (lastTime - firstTime));
+
+                    missMarkers.Add(new Box
+                    {
+                        RelativeSizeAxes = Axes.Y,
+                        RelativePositionAxes = Axes.X,
+                        Origin = Anchor.TopCentre,
+                        X = Math.Clamp(progress, 0, 1),
+                        Width = 2,
+                        Colour = MISS_COLOUR,
+                        Alpha = 0.9f,
+                    });
+                }
+            }
+
             private void updateBars()
             {
                 bars.Clear();
                 axis.Clear();
 
                 if (sections.Count < 2)
+                {
+                    updateMissMarkers();
                     return;
+                }
 
                 firstTime = sections[0].Time;
                 lastTime = sections[^1].Time;
+
+                updateMissMarkers();
 
                 int columns = Math.Min(maximum_columns, sections.Count);
 

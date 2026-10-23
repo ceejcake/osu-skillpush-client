@@ -26,26 +26,45 @@ namespace osu.Game.Overlays.Settings.Sections.Maintenance
         [Resolved]
         private INotificationOverlay? notificationOverlay { get; set; }
 
+        [Resolved]
+        private OsuCollectorImporter? sharedImporter { get; set; }
+
         [BackgroundDependencyLoader]
         private void load(IDialogOverlay? dialogOverlay)
         {
             var collectorInput = new Bindable<string>(string.Empty);
             var beatmapIdsName = new Bindable<string>(string.Empty);
             var beatmapIdsInput = new Bindable<string>(string.Empty);
-            OsuCollectorImporter collectorImporter;
+            // The game provides one importer, so that all downloads share a queue. Outside of the game, use our own.
+            var collectorImporter = sharedImporter ?? new OsuCollectorImporter();
+
+            if (sharedImporter == null)
+                Add(collectorImporter);
 
             AddRange(new Drawable[]
             {
-                collectorImporter = new OsuCollectorImporter(),
-                new SettingsTextBox
+                new BeatmapIdsTextBox
                 {
-                    LabelText = "osu!collector collection URL or ID",
+                    LabelText = "osu!collector collection URLs or IDs (paste any number of them)",
                     Current = collectorInput,
                 },
                 new SettingsButtonV2
                 {
                     Text = "Import from osu!collector",
+                    TooltipText = "Importing a collection which was imported before updates it.",
                     Action = () => collectorImporter.Import(collectorInput.Value),
+                },
+                new SettingsButtonV2
+                {
+                    Text = "Repair collections",
+                    TooltipText = "Finds beatmaps in your collections which aren't here, puts in the version you have, and downloads the rest. Takes a while the first time.",
+                    Action = () => collectorImporter.RepairCollections(),
+                },
+                new SettingsButtonV2
+                {
+                    Text = "Update osu!collector collections",
+                    TooltipText = "Adds beatmaps which were added on osu!collector since, and downloads any which are still missing. Nothing is removed.",
+                    Action = () => collectorImporter.UpdateAll(),
                 },
                 new SettingsTextBox
                 {
@@ -60,7 +79,7 @@ namespace osu.Game.Overlays.Settings.Sections.Maintenance
                 new SettingsButtonV2
                 {
                     Text = "Create collection from beatmap IDs",
-                    TooltipText = "Missing beatmaps are downloaded. Using the name of an existing collection adds to it.",
+                    TooltipText = "Missing beatmaps are downloaded, and duplicate IDs skipped. Using the name of an existing collection adds to it.",
                     Action = () => collectorImporter.ImportBeatmapIds(beatmapIdsName.Value, beatmapIdsInput.Value),
                 },
             });
@@ -101,7 +120,7 @@ namespace osu.Game.Overlays.Settings.Sections.Maintenance
                     // Text boxes are a single line and drop line breaks, which would run the entries of a pasted list together.
                     if (e.Action == PlatformAction.Paste && clipboard.GetText() is string pasted && pasted.IndexOfAny(new[] { '\r', '\n', '\t' }) >= 0)
                     {
-                        string separated = string.Join(' ', pasted.Split(new[] { '\r', '\n', '\t' }, System.StringSplitOptions.RemoveEmptyEntries));
+                        string separated = OsuCollectorImporter.JoinPastedLines(pasted);
 
                         Text = string.IsNullOrEmpty(Text) ? separated : $"{Text} {separated}";
                         return true;

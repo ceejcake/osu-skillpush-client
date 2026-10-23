@@ -36,6 +36,21 @@ namespace osu.Game.Collections
         [Resolved]
         private MusicController? musicController { get; set; }
 
+        /// <summary>
+        /// The folder view. Only present if folders are available.
+        /// </summary>
+        private CollectionFolderBrowser? browser;
+
+        protected override IReadOnlyDependencyContainer CreateChildDependencies(IReadOnlyDependencyContainer parent)
+        {
+            var dependencies = new DependencyContainer(base.CreateChildDependencies(parent));
+
+            if (parent.Get<CollectionFolderManager>() != null)
+                dependencies.Cache(browser = new CollectionFolderBrowser());
+
+            return dependencies;
+        }
+
         public ManageCollectionsDialog()
         {
             Anchor = Anchor.Centre;
@@ -120,7 +135,7 @@ namespace osu.Game.Collections
                                             {
                                                 list = new DrawableCollectionList
                                                 {
-                                                    Padding = new MarginPadding { Vertical = 50 },
+                                                    Padding = new MarginPadding { Top = browser != null ? 90 : 50, Bottom = 50 },
                                                     RelativeSizeAxes = Axes.Both,
                                                 },
                                                 searchTextBox = new BasicSearchTextBox
@@ -131,6 +146,12 @@ namespace osu.Game.Collections
                                                     HoldFocus = true,
                                                     PlaceholderText = HomeStrings.SearchPlaceholder,
                                                 },
+                                                browser != null
+                                                    ? new CollectionFolderBreadcrumbs
+                                                    {
+                                                        Y = 48,
+                                                    }
+                                                    : Empty(),
                                                 new Container
                                                 {
                                                     RelativeSizeAxes = Axes.X,
@@ -144,6 +165,7 @@ namespace osu.Game.Collections
                                                 },
                                             }
                                         },
+                                        browser ?? Empty(),
                                     }
                                 }
                             },
@@ -160,7 +182,13 @@ namespace osu.Game.Collections
             searchTextBox.Current.BindValueChanged(_ =>
             {
                 list.SearchTerm = searchTextBox.Current.Value;
+
+                if (browser != null)
+                    browser.SearchTerm.Value = searchTextBox.Current.Value;
             });
+
+            // Opening a folder (e.g. from search results) shows its contents.
+            browser?.CurrentFolder.BindValueChanged(_ => searchTextBox.Current.Value = string.Empty);
         }
 
         protected override void Dispose(bool isDisposing)
@@ -171,6 +199,8 @@ namespace osu.Game.Collections
 
         protected override void PopIn()
         {
+            list.RefreshCounts();
+
             duckOperation = musicController?.Duck(new DuckParameters
             {
                 DuckVolumeTo = 1,
@@ -200,6 +230,12 @@ namespace osu.Game.Collections
             [Resolved]
             private RealmAccess realm { get; set; } = null!;
 
+            [Resolved]
+            private CollectionFolderBrowser? browser { get; set; }
+
+            [Resolved]
+            private CollectionFolderManager? collectionFolders { get; set; }
+
             public NewCollectionEntryItem()
                 : base(new BeatmapCollection().ToLiveUnmanaged(), false)
             {
@@ -214,8 +250,14 @@ namespace osu.Game.Collections
                     if (string.IsNullOrEmpty(TextBox.Text))
                         return;
 
-                    realm.Write(r => r.Add(new BeatmapCollection(TextBox.Text)));
+                    var collection = new BeatmapCollection(TextBox.Text);
+
+                    realm.Write(r => r.Add(collection));
                     TextBox.Text = string.Empty;
+
+                    // New collections are created inside the folder being viewed.
+                    if (browser?.CurrentFolder.Value is System.Guid folder)
+                        collectionFolders?.AddToFolder(collection.ID, folder);
                 };
             }
         }

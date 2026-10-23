@@ -226,6 +226,7 @@ namespace osu.Game.Rulesets.UI
 
             modAcronym.Text = value.Acronym;
             modIcon.Icon = value.Icon ?? FontAwesome.Solid.Question;
+            modIcon.Scale = new Vector2(1, value is IHasUpsideDownIcon ? -1 : 1);
             TooltipContent = showTooltip ? value as Mod : null;
 
             if (value.Icon == null)

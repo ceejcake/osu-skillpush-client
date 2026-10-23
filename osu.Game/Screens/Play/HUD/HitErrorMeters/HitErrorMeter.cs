@@ -11,6 +11,7 @@ using osu.Framework.Graphics.Containers;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Rulesets.Judgements;
+using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Rulesets.UI;
 using osu.Game.Skinning;
@@ -42,14 +43,19 @@ namespace osu.Game.Screens.Play.HUD.HitErrorMeters
 
         private Bindable<bool> sizeOverride;
         private Bindable<float> overrideSize;
+        private Bindable<bool> showPressedMisses;
+
+        private Playfield playfield;
 
         [BackgroundDependencyLoader(true)]
         private void load(DrawableRuleset drawableRuleset, OsuConfigManager config)
         {
             HitWindows = drawableRuleset?.FirstAvailableHitWindows ?? HitWindows.Empty;
+            playfield = drawableRuleset?.Playfield;
 
             sizeOverride = config?.GetBindable<bool>(OsuSetting.HitErrorBarSizeOverride);
             overrideSize = config?.GetBindable<float>(OsuSetting.HitErrorBarSize);
+            showPressedMisses = config?.GetBindable<bool>(OsuSetting.HitErrorShowPressedMisses);
 
             // This is to allow the visual state to be correct after HUD comes visible after being hidden.
             AlwaysPresent = true;
@@ -63,6 +69,9 @@ namespace osu.Game.Screens.Play.HUD.HitErrorMeters
                 gameplayClockContainer.OnSeek += Clear;
 
             processor.NewJudgement += processorNewJudgement;
+
+            if (playfield != null)
+                playfield.MisaimedPress += playfieldMisaimedPress;
         }
 
         protected override void Update()
@@ -127,11 +136,48 @@ namespace osu.Game.Screens.Play.HUD.HitErrorMeters
         // Scheduled as meter implementations are likely going to change/add drawables when reacting to this.
         private void processorNewJudgement(JudgementResult j) => Schedule(() => OnNewJudgement(j));
 
+        private void playfieldMisaimedPress(HitObject hitObject, double timeOffset) => Schedule(() =>
+        {
+            if (showPressedMisses?.Value == true)
+                OnMisaimedPress(hitObject, timeOffset);
+        });
+
+        /// <summary>
+        /// Fired when a key press was timed to hit an object, but didn't hit it (e.g. because the cursor wasn't on it),
+        /// and <see cref="OsuSetting.HitErrorShowPressedMisses"/> is enabled.
+        /// </summary>
+        /// <param name="hitObject">The object the press was timed for.</param>
+        /// <param name="timeOffset">How early (negative) or late (positive) the press was, in milliseconds.</param>
+        protected virtual void OnMisaimedPress(HitObject hitObject, double timeOffset)
+        {
+        }
+
         /// <summary>
         /// Fired when a new judgement arrives.
         /// </summary>
         /// <param name="judgement">The new judgement.</param>
         protected abstract void OnNewJudgement(JudgementResult judgement);
+
+        /// <summary>
+        /// Whether a judgement is a miss which was caused by pressing a key (as opposed to not pressing at all), and should be shown
+        /// on the meter (<see cref="OsuSetting.HitErrorShowPressedMisses"/>).
+        /// </summary>
+        /// <remarks>
+        /// A miss from not pressing is only judged once the object can no longer be hit, whereas a miss from pressing
+        /// happens while it still could be (i.e. the press was too early for any other result).
+        /// </remarks>
+        protected bool IsShownPressedMiss(JudgementResult judgement)
+        {
+            if (showPressedMisses?.Value != true || judgement.Type != HitResult.Miss)
+                return false;
+
+            var hitWindows = judgement.HitObject.HitWindows;
+
+            if (hitWindows == null || hitWindows.WindowFor(HitResult.Miss) == 0)
+                return false;
+
+            return hitWindows.CanBeHit(judgement.TimeOffset);
+        }
 
         protected Color4 GetColourForHitResult(HitResult result)
         {

@@ -19,8 +19,10 @@ using osu.Game.Graphics.Containers;
 using osu.Game.Graphics.Sprites;
 using osu.Game.Localisation.HUD;
 using osu.Game.Rulesets.Judgements;
+using osu.Game.Rulesets.Objects;
 using osu.Game.Rulesets.Scoring;
 using osuTK;
+using osuTK.Graphics;
 
 namespace osu.Game.Screens.Play.HUD.HitErrorMeters
 {
@@ -400,12 +402,38 @@ namespace osu.Game.Screens.Play.HUD.HitErrorMeters
         {
             const int arrow_move_duration = 800;
 
-            if (!judgement.IsHit || judgement.HitObject.HitWindows?.WindowFor(HitResult.Miss) == 0)
+            bool pressedMiss = IsShownPressedMiss(judgement);
+
+            if (!pressedMiss && (!judgement.IsHit || judgement.HitObject.HitWindows?.WindowFor(HitResult.Miss) == 0))
                 return;
 
             if (!judgement.Type.IsScorable() || judgement.Type.IsBonus())
                 return;
 
+            addJudgementLine(judgement.TimeOffset, GetColourForHitResult(judgement.Type));
+
+            // Misses are too early to be on the meter's scale (they are shown at its edge), so would throw off the average.
+            if (pressedMiss)
+                return;
+
+            arrow.MoveToY(
+                getRelativeJudgementPosition(floatingAverage = floatingAverage * 0.9 + judgement.TimeOffset * 0.1)
+                , arrow_move_duration, Easing.OutQuint);
+        }
+
+        /// <summary>
+        /// Shows where a press which missed its object would have landed, as a miss-coloured line.
+        /// </summary>
+        protected override void OnMisaimedPress(HitObject hitObject, double timeOffset)
+        {
+            if (hitObject.HitWindows?.WindowFor(HitResult.Miss) == 0)
+                return;
+
+            addJudgementLine(timeOffset, GetColourForHitResult(HitResult.Miss));
+        }
+
+        private void addJudgementLine(double timeOffset, Color4 colour)
+        {
             if (judgementsContainer.Count > max_concurrent_judgements)
             {
                 const double quick_fade_time = 100;
@@ -422,15 +450,11 @@ namespace osu.Game.Screens.Play.HUD.HitErrorMeters
 
             judgementLinePool.Get(drawableJudgement =>
             {
-                drawableJudgement.Y = getRelativeJudgementPosition(judgement.TimeOffset);
-                drawableJudgement.Colour = GetColourForHitResult(judgement.Type);
+                drawableJudgement.Y = getRelativeJudgementPosition(timeOffset);
+                drawableJudgement.Colour = colour;
 
                 judgementsContainer.Add(drawableJudgement);
             });
-
-            arrow.MoveToY(
-                getRelativeJudgementPosition(floatingAverage = floatingAverage * 0.9 + judgement.TimeOffset * 0.1)
-                , arrow_move_duration, Easing.OutQuint);
         }
 
         private float getRelativeJudgementPosition(double value) => Math.Clamp((float)((value / maxHitWindow) + 1) / 2, 0, 1);

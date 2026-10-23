@@ -185,6 +185,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
             new OsuModHalfTime(),
             new OsuModEasy(),
             new OsuModHardRock(),
+            new OsuModHardRockCircleSize(),
             new OsuModFlashlight(),
             new OsuModHidden(),
         };

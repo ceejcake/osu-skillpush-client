@@ -258,6 +258,13 @@ namespace osu.Game.Rulesets
         public virtual ScoreProcessor CreateScoreProcessor() => new ScoreProcessor(this);
 
         /// <summary>
+        /// Creates the formula used to score plays the way osu!stable's Score V2 did, if this ruleset offers one.
+        /// Used for every play while <see cref="ScoringFormulaDefaults.ScoreV2ByDefault"/> is enabled.
+        /// </summary>
+        /// <returns>The formula, or null if this ruleset doesn't offer Score V2.</returns>
+        public virtual IScoringFormula? CreateScoreV2Formula() => null;
+
+        /// <summary>
         /// Creates a <see cref="HealthProcessor"/> for this <see cref="Ruleset"/>.
         /// </summary>
         /// <returns>The health processor.</returns>
